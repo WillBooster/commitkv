@@ -217,13 +217,17 @@ impl Store {
         state.index.keys().map(|key| key.to_vec()).collect()
     }
 
-    /// Picks up records that other stores wrote to the directory since the last call.
+    /// Picks up records that other stores wrote to the directory since the last call, and
+    /// forgets records whose segments were removed or cut short.
     pub fn refresh(&self) -> Result<()> {
         // Holding the writer keeps `put` from appending a record while it is being scanned,
         // which would apply it twice.
-        let _writer = self.lock_writer();
+        let mut writer = self.lock_writer();
         let mut state = self.state.write().expect("state lock is not poisoned");
-        self.refresh_state(&mut state)
+        if self.refresh_state(&mut state)? {
+            *writer = None;
+        }
+        Ok(())
     }
 
     fn lock_writer(&self) -> MutexGuard<'_, Option<Writer>> {
@@ -238,37 +242,62 @@ impl Store {
         self.cache.lock().expect("cache lock is not poisoned")
     }
 
-    fn refresh_state(&self, state: &mut State) -> Result<()> {
-        let known: HashSet<&str> = state.segments.iter().map(|s| s.name.as_str()).collect();
-        let mut added = Vec::new();
-        for entry in fs::read_dir(&self.dir)? {
-            let path = entry?.path();
-            let is_segment = path.extension().is_some_and(|ext| ext == SEGMENT_EXTENSION);
-            if let Some(name) = path.file_name().and_then(|name| name.to_str()) {
-                if is_segment && !known.contains(name) {
-                    added.push(name.to_owned());
+    /// Brings `state` up to date with the directory; `true` when it had to be rebuilt, which
+    /// invalidates the segment indices a writer holds.
+    fn refresh_state(&self, state: &mut State) -> Result<bool> {
+        let mut rebuilt = false;
+        loop {
+            let known: HashSet<&str> = state.segments.iter().map(|s| s.name.as_str()).collect();
+            let mut added = Vec::new();
+            for entry in fs::read_dir(&self.dir)? {
+                let path = entry?.path();
+                // Following symbolic links; a directory or a FIFO with the extension is not a
+                // segment, and opening a FIFO would block.
+                let is_segment = path.extension().is_some_and(|ext| ext == SEGMENT_EXTENSION)
+                    && fs::metadata(&path).is_ok_and(|metadata| metadata.is_file());
+                if let Some(name) = path.file_name().and_then(|name| name.to_str()) {
+                    if is_segment && !known.contains(name) {
+                        added.push(name.to_owned());
+                    }
                 }
             }
+            added.sort();
+            for name in added {
+                state.add_segment(Segment::new(name));
+            }
+            let mut intact = true;
+            for index in 0..state.segments.len() {
+                intact &= self.scan(state, index)?;
+            }
+            if intact {
+                return Ok(rebuilt);
+            }
+            // A segment was removed or cut short, as when git checks out another branch: what
+            // was read from it may be gone, so read the directory afresh.
+            *state = State::default();
+            *self.lock_cache() = ByteCache::new(CACHE_BYTES);
+            rebuilt = true;
         }
-        added.sort();
-        for name in added {
-            state.add_segment(Segment::new(name));
-        }
-        for index in 0..state.segments.len() {
-            self.scan(state, index)?;
-        }
-        Ok(())
     }
 
     /// Reads the records appended to a segment since it was last scanned. A record that is
     /// incomplete or fails its checksum ends the scan: it is either still being written or the
     /// tail a crashed writer left, and the next scan retries from it.
-    fn scan(&self, state: &mut State, index: usize) -> Result<()> {
+    ///
+    /// `false` when the segment no longer holds what was scanned.
+    fn scan(&self, state: &mut State, index: usize) -> Result<bool> {
         let segment = &state.segments[index];
-        let mut file = File::open(self.dir.join(&segment.name))?;
+        let mut file = match File::open(self.dir.join(&segment.name)) {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+            Err(error) => return Err(error.into()),
+        };
         let len = file.metadata()?.len();
+        if len < segment.scanned {
+            return Ok(false);
+        }
         if len <= segment.scanned.max(HEADER_LEN) {
-            return Ok(());
+            return Ok(true);
         }
         let start = segment.scanned;
         file.seek(SeekFrom::Start(start))?;
@@ -277,7 +306,7 @@ impl Store {
         let mut pos = 0;
         if start == 0 {
             if !bytes.starts_with(&HEADER) {
-                return Ok(());
+                return Ok(true);
             }
             pos = HEADER.len();
             state.segments[index].scanned = HEADER_LEN;
@@ -288,7 +317,7 @@ impl Store {
             }
             pos += record.len;
         }
-        Ok(())
+        Ok(true)
     }
 
     fn group_raw(&self, state: &State, location: &Location) -> Result<Arc<[u8]>> {

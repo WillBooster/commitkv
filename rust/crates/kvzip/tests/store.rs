@@ -233,6 +233,21 @@ fn checkouts_that_share_history_never_change_the_same_segment() {
     assert_eq!(ignored, "/.kvzip-writer\n");
 }
 
+#[test]
+fn refresh_follows_a_directory_whose_segments_were_replaced() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = open(dir.path());
+    store.put(b"removed", b"value").unwrap();
+    // What checking out another branch does, including an entry that only looks like a segment.
+    fs::remove_file(segment_paths(dir.path()).remove(0)).unwrap();
+    fs::create_dir(dir.path().join("not-a-segment.kvz")).unwrap();
+    store.refresh().unwrap();
+    assert_eq!(store.get(b"removed").unwrap(), None);
+    assert_eq!(store.len(), 0);
+    store.put(b"added", b"value").unwrap();
+    assert_eq!(open(dir.path()).keys(), [b"added".to_vec()]);
+}
+
 fn small_segments() -> Options {
     Options {
         max_segment_bytes: SMALL_SEGMENT,
