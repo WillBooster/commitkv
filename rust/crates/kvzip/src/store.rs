@@ -134,9 +134,10 @@ impl Store {
             return Ok(None);
         };
         let raw = self.group_raw(&state, location)?;
-        Ok(Some(
-            raw[location.raw_offset..][..location.raw_len].to_vec(),
-        ))
+        let value = raw
+            .get(location.raw_offset..location.raw_offset + location.raw_len)
+            .ok_or_else(|| Error::Corrupt("a value lies outside its group".into()))?;
+        Ok(Some(value.to_vec()))
     }
 
     /// Stores `value` under `key`, replacing every value of the key this store has seen. Among
@@ -588,28 +589,39 @@ impl State {
     /// cannot be placed, which leaves the state unchanged.
     fn apply(&mut self, segment_index: usize, record: &Record) -> bool {
         let segment = &mut self.segments[segment_index];
-        let Ok(raw_len) = usize::try_from(record.raw_len) else {
+        // Lengths come from the file: a record whose values cannot be addressed is invalid.
+        let group_raw = if record.new_group {
+            0
+        } else {
+            segment.group_raw
+        };
+        let raw_len = usize::try_from(record.raw_len).ok();
+        let (Some(raw_len), Some(group_raw_end), Some(raw_total)) = (
+            raw_len,
+            raw_len.and_then(|raw_len| group_raw.checked_add(raw_len)),
+            raw_len.and_then(|raw_len| segment.raw_total.checked_add(raw_len)),
+        ) else {
             return false;
         };
+        if !record.new_group && segment.groups.is_empty() {
+            return false;
+        }
         if record.new_group {
             segment.groups.push(Group {
                 offset: segment.scanned,
                 base_len: segment.raw_total.min(BASE_MAX),
             });
-            segment.group_raw = 0;
-        } else if segment.groups.is_empty() {
-            return false;
         }
         let location = Location {
             segment: segment_index,
             group: segment.groups.len() - 1,
             end: segment.scanned + record.len as u64,
-            raw_offset: segment.group_raw,
+            raw_offset: group_raw,
             raw_len,
         };
         segment.scanned = location.end;
-        segment.group_raw += raw_len;
-        segment.raw_total += raw_len;
+        segment.group_raw = group_raw_end;
+        segment.raw_total = raw_total;
         // The newest record of a key wins: segment names order by creation time and offsets
         // order within a segment.
         let newer = self.index.get(record.key).is_none_or(|current| {
@@ -660,13 +672,16 @@ fn is_same_file(file: &File, path: &Path) -> bool {
 /// Decodes the values of the records that make up one group.
 fn decode_records(prefix: &[u8], bytes: &[u8]) -> Result<Vec<u8>> {
     let mut payloads = Vec::new();
-    let mut raw_len = 0;
+    let mut raw_len = 0usize;
     let mut pos = 0;
     while pos < bytes.len() {
         let record = parse_record(&bytes[pos..])
             .ok_or_else(|| Error::Corrupt("a record changed after it was read".into()))?;
         payloads.push(record.payload);
-        raw_len += record.raw_len as usize;
+        raw_len = usize::try_from(record.raw_len)
+            .ok()
+            .and_then(|record_raw_len| raw_len.checked_add(record_raw_len))
+            .ok_or_else(|| Error::Corrupt("a group declares more bytes than fit".into()))?;
         pos += record.len;
     }
     decode_group(prefix, payloads.into_iter(), raw_len)

@@ -312,6 +312,29 @@ fn a_segment_of_another_format_version_is_neither_read_nor_changed() {
     assert_eq!(open(dir.path()).keys(), [b"other".to_vec()]);
 }
 
+#[test]
+fn value_lengths_that_cannot_be_addressed_are_reported_not_trusted() {
+    // A group whose first record declares a value of u64::MAX bytes and whose second record
+    // declares one more byte, both with valid checksums.
+    let mut segment = b"kvzip\0\0\x01".to_vec();
+    for (kind, key, value_len) in [(1, b'a', &[0xff; 10][..]), (0, b'b', &[1][..])] {
+        let mut record = vec![kind, 1, key];
+        record.extend_from_slice(value_len);
+        if value_len.len() == 10 {
+            *record.last_mut().unwrap() = 1;
+        }
+        record.push(0);
+        record.extend_from_slice(&crc32fast::hash(&record).to_le_bytes());
+        segment.extend_from_slice(&record);
+    }
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("0000000000000001-00000000.kvz"), segment).unwrap();
+
+    let store = open(dir.path());
+    assert_eq!(store.keys(), [b"a".to_vec()]);
+    assert!(matches!(store.get(b"a"), Err(Error::Corrupt(_))));
+}
+
 fn small_segments() -> Options {
     Options {
         max_segment_bytes: SMALL_SEGMENT,
