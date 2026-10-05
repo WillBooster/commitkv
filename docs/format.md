@@ -50,9 +50,11 @@ The frame of a group is coded against a prefix (`ZSTD_CCtx_refPrefix`): the firs
 are fewer. Decoding a group therefore needs the groups at the start of its segment, up to the
 one in which the values reach `BASE_MAX`, and no other.
 
-The writer starts a new group when it begins to append to a segment and when the current group
-holds at least `GROUP_RAW_TARGET` (1 MiB) of values. Frames use a window of 4 MiB
-(`windowLog` 22), which a decoder must allow.
+Frames use a window of 4 MiB (`windowLog` 22); a decoder must allow it and rejects a larger one.
+
+Where groups start is the writer's choice, which readers take from the kind byte and which may
+change without a new version: a store starts a group when it begins to append to a segment and
+when the current group holds at least `GROUP_RAW_TARGET` (1 MiB) of values.
 
 ## Which record of a key is current
 
