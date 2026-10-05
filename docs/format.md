@@ -22,7 +22,8 @@ creates one. It stops appending to a segment once it sees one whose name sorts l
 
 - The segment's name sorts last in the directory.
 - `.kvzip-writer` names the segment and its current length. The file holds
-  `<segment name> <length as 20 decimal digits>\n` and is rewritten after every record.
+  `<segment name> <length as 20 decimal digits>\n`. A store rewrites it before every record
+  with the length the segment will have, and does not write the record when that fails.
 - The segment ends in a valid record, is shorter than the limit, and its lock is free.
 
 A store lists `/.kvzip-writer` in the directory's `.gitignore` before it creates the file, so the

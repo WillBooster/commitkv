@@ -427,13 +427,20 @@ impl Store {
         value: &[u8],
     ) -> Result<()> {
         let mut state = self.state.write().expect("state lock is not poisoned");
+        if writer.marker.is_none() {
+            writer.marker = Some(self.open_marker()?);
+        }
+        let marker = writer.marker.as_ref().expect("the marker was just opened");
+        let len = writer.len + bytes.len() as u64;
         let segment = match &mut writer.open {
             Some((segment, file)) => {
+                write_marker(marker, &state.segments[*segment].name, len)?;
                 file.write_all(bytes)?;
                 *segment
             }
             None => {
                 let (name, mut file) = self.create_segment(&state)?;
+                write_marker(marker, &name, len)?;
                 file.write_all(&[&HEADER, bytes].concat())?;
                 let mut segment = Segment::new(name);
                 segment.scanned = HEADER_LEN;
@@ -444,7 +451,7 @@ impl Store {
         };
         let applied = state.apply(segment, record);
         assert!(applied, "a writer starts every segment with a new group");
-        writer.len += bytes.len() as u64;
+        writer.len = len;
         writer.group_raw = value.len()
             + if record.new_group {
                 0
@@ -452,17 +459,6 @@ impl Store {
                 writer.group_raw
             };
         writer.group_open = true;
-        if writer.marker.is_none() {
-            writer.marker = self.open_marker();
-        }
-        if let Some(mut marker) = writer.marker.as_ref() {
-            // The text has a fixed length, so one write replaces it. A failure only leaves a
-            // marker that matches no segment, which makes the next writer start a new one.
-            let text = format!("{} {:020}\n", state.segments[segment].name, writer.len);
-            let _ = marker
-                .seek(SeekFrom::Start(0))
-                .and_then(|_| marker.write_all(text.as_bytes()));
-        }
         let base_room = BASE_MAX - writer.base.len();
         writer
             .base
@@ -476,16 +472,15 @@ impl Store {
         Some((name.to_owned(), len.parse().ok()?))
     }
 
-    /// Opens the marker after making sure git ignores it: a committed marker would let other
-    /// checkouts append to the segment it names. `None` when either step fails, which only
-    /// costs the next writer a new segment.
-    fn open_marker(&self) -> Option<File> {
+    /// Opens the marker, emptied, after making sure git ignores it: a committed marker would
+    /// let other checkouts append to the segment it names.
+    fn open_marker(&self) -> io::Result<File> {
         let ignore_path = self.dir.join(".gitignore");
         let ignore_line = format!("/{MARKER_NAME}");
         let ignored = match fs::read_to_string(&ignore_path) {
             Ok(ignored) => ignored,
             Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
-            Err(_) => return None,
+            Err(error) => return Err(error),
         };
         if !ignored.lines().any(|line| line == ignore_line) {
             let separator = if ignored.is_empty() || ignored.ends_with('\n') {
@@ -499,15 +494,13 @@ impl Store {
                 .open(&ignore_path)
                 .and_then(|mut file| {
                     file.write_all(format!("{separator}{ignore_line}\n").as_bytes())
-                })
-                .ok()?;
+                })?;
         }
         OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true)
             .open(self.dir.join(MARKER_NAME))
-            .ok()
     }
 
     /// Creates a segment whose name sorts after every known one and locks it against other
@@ -610,6 +603,15 @@ impl Segment {
             .get(group + 1)
             .map_or(self.scanned, |next| next.offset)
     }
+}
+
+/// Records the length a segment is about to have. Written before the record so that a marker
+/// never names a length its segment has left: after a crash in between it names a length the
+/// segment never reached, which matches no checkout. The text has a fixed length, so one write
+/// replaces it.
+fn write_marker(mut marker: &File, segment_name: &str, len: u64) -> io::Result<()> {
+    marker.seek(SeekFrom::Start(0))?;
+    marker.write_all(format!("{segment_name} {len:020}\n").as_bytes())
 }
 
 fn read_range(path: &Path, start: u64, end: u64) -> Result<Vec<u8>> {

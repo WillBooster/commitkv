@@ -26,6 +26,10 @@ fn main() {
 
     let stored: u64 = fs::read_dir(dir.path())
         .expect("the directory is readable")
+        .filter(|entry| {
+            let path = entry.as_ref().expect("an entry").path();
+            path.extension().is_some_and(|extension| extension == "kvz")
+        })
         .map(|entry| entry.expect("an entry").metadata().expect("metadata").len())
         .sum();
     let started = Instant::now();
