@@ -1,9 +1,9 @@
 # Segment format (version 1)
 
 Committed caches hold segments forever, so a store must keep reading every segment a released
-version wrote. A change to a rule in "Directory", "Segment", "Groups", or "Which record of a key
-is current" needs a new version byte and a reader for the old one. A segment whose header is not
-the one below contributes no records and is never appended to.
+version wrote. A change to a rule a reader depends on needs a new version byte and a reader for
+the old one; the rules that only writers follow say so. A segment whose header is not the one
+below contributes no records and is never appended to.
 
 ## Directory
 
