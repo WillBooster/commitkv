@@ -3,6 +3,7 @@ use std::{
     fs::{self, File, OpenOptions},
     hash::{BuildHasher, RandomState},
     io::{self, Read, Seek, SeekFrom, Write},
+    os::unix::fs::MetadataExt,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard, RwLock},
     time::{SystemTime, UNIX_EPOCH},
@@ -224,7 +225,16 @@ impl Store {
         // which would apply it twice.
         let mut writer = self.lock_writer();
         let mut state = self.state.write().expect("state lock is not poisoned");
-        if self.refresh_state(&mut state)? {
+        // Git replaces a file it checks out, even with the same bytes: the writer's handle then
+        // refers to a file that is no longer in the directory.
+        let detached = writer
+            .as_ref()
+            .and_then(|writer| writer.open.as_ref())
+            .is_some_and(|(segment, file)| {
+                let path = self.dir.join(&state.segments[*segment].name);
+                !is_same_file(file, &path)
+            });
+        if self.refresh_state(&mut state)? || detached {
             *writer = None;
         }
         Ok(())
@@ -620,6 +630,13 @@ impl Segment {
 fn write_marker(mut marker: &File, segment_name: &str, len: u64) -> io::Result<()> {
     marker.seek(SeekFrom::Start(0))?;
     marker.write_all(format!("{segment_name} {len:020}\n").as_bytes())
+}
+
+fn is_same_file(file: &File, path: &Path) -> bool {
+    match (file.metadata(), fs::metadata(path)) {
+        (Ok(open), Ok(named)) => (open.dev(), open.ino()) == (named.dev(), named.ino()),
+        _ => false,
+    }
 }
 
 fn read_range(path: &Path, start: u64, end: u64) -> Result<Vec<u8>> {
