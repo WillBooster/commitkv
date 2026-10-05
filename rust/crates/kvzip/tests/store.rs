@@ -352,6 +352,19 @@ fn value_lengths_that_cannot_be_addressed_are_reported_not_trusted() {
     assert!(matches!(store.get(b"a"), Err(Error::Corrupt(_))));
 }
 
+#[test]
+fn a_put_fails_rather_than_lose_to_a_segment_no_name_can_follow() {
+    let dir = tempfile::tempdir().unwrap();
+    open(dir.path()).put(b"key", b"old").unwrap();
+    let segment = segment_paths(dir.path()).remove(0);
+    fs::rename(segment, dir.path().join("ffffffffffffffff-ffffffff.kvz")).unwrap();
+
+    let store = open(dir.path());
+    assert!(matches!(store.put(b"key", b"new"), Err(Error::Corrupt(_))));
+    assert_eq!(store.get(b"key").unwrap().unwrap(), b"old");
+    assert_eq!(segment_paths(dir.path()).len(), 1);
+}
+
 fn small_segments() -> Options {
     Options {
         max_segment_bytes: SMALL_SEGMENT,

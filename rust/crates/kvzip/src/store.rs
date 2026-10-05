@@ -571,6 +571,14 @@ impl Store {
         loop {
             let random = RandomState::new().hash_one(time) as u32;
             let name = format!("{time:016x}-{random:08x}.{SEGMENT_EXTENSION}");
+            // A name kvzip did not choose (not a time, or the last possible one) can sort
+            // after every name it can: records written now would lose to that segment's.
+            if let Some(newest) = state.newest.map(|newest| &state.segments[newest].name) {
+                if *newest >= name {
+                    let message = format!("no new segment name sorts after {newest}");
+                    return Err(Error::Corrupt(message));
+                }
+            }
             let created = self.open_file(&name, OpenOptions::new().append(true).create_new(true));
             match created {
                 Ok(file) => {

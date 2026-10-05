@@ -9,7 +9,8 @@ pub enum Error {
         max_segment_bytes: u64,
     },
     InvalidOptions(String),
-    /// A record that passed its checksum does not decode: the segment was not written by kvzip.
+    /// The directory holds something kvzip did not write: a record that passed its checksum
+    /// but does not decode, or a segment name no new segment can sort after.
     Corrupt(String),
 }
 
@@ -27,7 +28,7 @@ impl fmt::Display for Error {
                 "record needs {record_bytes} bytes but a segment holds at most {max_segment_bytes}"
             ),
             Error::InvalidOptions(message) => write!(f, "invalid options: {message}"),
-            Error::Corrupt(message) => write!(f, "corrupt segment: {message}"),
+            Error::Corrupt(message) => write!(f, "corrupt store: {message}"),
         }
     }
 }
