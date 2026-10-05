@@ -327,18 +327,21 @@ impl Store {
         if len <= segment.scanned.max(HEADER_LEN) {
             return Ok(true);
         }
-        let start = segment.scanned;
+        if segment.scanned == 0 {
+            // Checked before anything else is read: a segment with another header is skipped
+            // on every scan, which must not cost a read of the whole file each time.
+            let mut header = [0; HEADER.len()];
+            file.read_exact(&mut header)?;
+            if header != HEADER {
+                return Ok(true);
+            }
+            state.segments[index].scanned = HEADER_LEN;
+        }
+        let start = state.segments[index].scanned;
         file.seek(SeekFrom::Start(start))?;
         let mut bytes = Vec::new();
         file.take(len - start).read_to_end(&mut bytes)?;
         let mut pos = 0;
-        if start == 0 {
-            if !bytes.starts_with(&HEADER) {
-                return Ok(true);
-            }
-            pos = HEADER.len();
-            state.segments[index].scanned = HEADER_LEN;
-        }
         while let Some(record) = parse_record(&bytes[pos..]) {
             if !state.apply(index, &record) {
                 break;
