@@ -8,6 +8,9 @@ class Store:
 
     A ``str`` key or value stands for its UTF-8 encoding. A store may be shared by threads,
     and several stores, in one process or many, may use the same directory at once.
+
+    Every method may raise ``OSError`` for an I/O failure and ``RuntimeError`` for a corrupt
+    store.
     """
 
     def __init__(
