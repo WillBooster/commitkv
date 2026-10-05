@@ -1,8 +1,8 @@
 use std::{
+    ffi::CString,
     fs,
-    os::unix::fs::symlink,
+    os::unix::{ffi::OsStrExt, fs::symlink},
     path::{Path, PathBuf},
-    process::Command,
     thread,
 };
 
@@ -302,11 +302,11 @@ fn symbolic_links_in_the_directory_are_not_followed() {
         .find(|path| *path != segment)
         .unwrap();
     fs::remove_file(&later).unwrap();
-    assert!(Command::new("mkfifo")
-        .arg(&later)
-        .status()
-        .unwrap()
-        .success());
+    // Made in this process: spawning `mkfifo` would fork while other tests hold segment locks,
+    // and the child keeps those locks until it execs, which makes their stores start new
+    // segments.
+    let fifo = CString::new(later.as_os_str().as_bytes()).unwrap();
+    assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
     store.refresh().unwrap();
     assert_eq!(store.len(), 0);
     store.put(b"last", b"value").unwrap();
