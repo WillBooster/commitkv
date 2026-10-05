@@ -2,6 +2,7 @@ use std::{
     fs,
     os::unix::fs::symlink,
     path::{Path, PathBuf},
+    process::Command,
     thread,
 };
 
@@ -294,6 +295,22 @@ fn symbolic_links_in_the_directory_are_not_followed() {
     store.put(b"later", b"value").unwrap();
     assert_eq!(fs::read(&moved).unwrap(), moved_bytes);
     assert_eq!(open(dir.path()).keys(), [b"later".to_vec()]);
+
+    // The same with a FIFO, which would block a store that opened it.
+    let later = segment_paths(dir.path())
+        .into_iter()
+        .find(|path| *path != segment)
+        .unwrap();
+    fs::remove_file(&later).unwrap();
+    assert!(Command::new("mkfifo")
+        .arg(&later)
+        .status()
+        .unwrap()
+        .success());
+    store.refresh().unwrap();
+    assert_eq!(store.len(), 0);
+    store.put(b"last", b"value").unwrap();
+    assert_eq!(open(dir.path()).keys(), [b"last".to_vec()]);
 }
 
 #[test]

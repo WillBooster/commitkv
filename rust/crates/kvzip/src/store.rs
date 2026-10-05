@@ -307,10 +307,12 @@ impl Store {
         let segment = &state.segments[index];
         let mut file = match self.open_file(&segment.name, OpenOptions::new().read(true)) {
             Ok(file) => file,
-            // Removed, or replaced by a symbolic link.
+            // Removed, or replaced by something that is not a regular file.
             Err(error)
-                if error.kind() == io::ErrorKind::NotFound
-                    || error.raw_os_error() == Some(libc::ELOOP) =>
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::NotFound | io::ErrorKind::InvalidInput
+                ) =>
             {
                 return Ok(false)
             }
@@ -519,13 +521,24 @@ impl Store {
         self.open_file(MARKER_NAME, options.write(true).create(true).truncate(true))
     }
 
-    /// Opens a file of the directory. Every open goes through here so that a symbolic link is
-    /// never followed: a cache that came through git must not make the store read or write
-    /// outside its directory.
+    /// Opens a regular file of the directory; anything else under the name is an `InvalidInput`
+    /// error. Every open goes through here so that a symbolic link is never followed (a cache
+    /// that came through git must not make the store read or write outside its directory) and
+    /// a FIFO never blocks the store.
     fn open_file(&self, name: &str, options: &mut OpenOptions) -> io::Result<File> {
-        options
-            .custom_flags(libc::O_NOFOLLOW)
-            .open(self.dir.join(name))
+        let path = self.dir.join(name);
+        // `O_NONBLOCK` only matters for the open itself: it has no effect on a regular file.
+        let opened = options
+            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+            .open(&path);
+        match opened {
+            Ok(file) if file.metadata()?.is_file() => Ok(file),
+            Err(error) if error.raw_os_error() != Some(libc::ELOOP) => Err(error),
+            _ => {
+                let message = format!("{} is not a regular file", path.display());
+                Err(io::Error::new(io::ErrorKind::InvalidInput, message))
+            }
+        }
     }
 
     fn read_text(&self, name: &str) -> io::Result<String> {
