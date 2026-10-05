@@ -1,0 +1,7 @@
+[tools]
+bun = "1.4.2"
+node = "24.21.0"
+
+[tools.rust]
+version = "1.98.0"
+components = "rustfmt,clippy"

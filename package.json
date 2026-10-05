@@ -1,0 +1,23 @@
+{
+  "name": "kvzip",
+  "version": "0.0.0-semantically-released",
+  "description": "Compressed key-value store for git-managed caches: append-only segments that never exceed a size limit, usable from Python, Node.js, and Bun",
+  "keywords": [
+    "cache",
+    "compression",
+    "git",
+    "key-value",
+    "zstd"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WillBooster/kvzip.git"
+  },
+  "license": "UNLICENSED",
+  "author": "WillBooster Inc.",
+  "type": "module",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}
