@@ -63,22 +63,26 @@ offset.
 
 ## Which segment a store appends to
 
-No reader depends on the rules of this section: they only keep writers from changing a segment
-on two branches, and may change without a new version.
+Reading a segment does not depend on the rules of this section, so they may change without a new
+version. Each one keeps a guarantee, named with it, that a change must keep.
 
 A segment is only ever appended to, by the store that holds an exclusive advisory lock (`flock`)
 on it. A store starts appending to an existing segment only when all of these hold; otherwise it
-creates one. It stops appending to a segment once it sees one whose name sorts later.
+creates one:
 
-- The segment's name sorts last in the directory.
-- `.kvzip-writer` names the segment and its current length. The file holds
-  `<segment name> <length as 20 decimal digits>\n`. A store rewrites it before every record
-  with the length the segment will have, and does not write the record when that fails.
-- The segment ends in a valid record, is shorter than the limit, and its lock is free.
+- The segment's name sorts last in the directory, and the store stops appending to a segment
+  once it sees one whose name sorts later. This makes a `put` replace every record of its key
+  that the store has seen.
+- The segment ends in a valid record and is shorter than the limit. A record after an invalid
+  one would never be read, and no segment may exceed the limit.
+- `.kvzip-writer` names the segment and its current length. This keeps two branches from
+  changing one segment.
 
-A store lists `/.kvzip-writer` in the directory's `.gitignore` before it creates the file, so the
-file never travels through git. A segment is therefore extended only in the directory that
-created it and only from the state that directory left it in: all versions of a segment that
-ever exist are prefixes of one another, and two branches cannot both change one segment.
+`.kvzip-writer` holds `<segment name> <length as 20 decimal digits>\n`. A store rewrites it
+before every record with the length the segment will have, and does not write the record when
+that fails. A store lists `/.kvzip-writer` in the directory's `.gitignore` before it creates the
+file, so the file never travels through git. A segment is therefore extended only in the
+directory that created it and only from the state that directory left it in: all versions of a
+segment that ever exist are prefixes of one another.
 
 `put` fails when `.gitignore` or `.kvzip-writer` is a symbolic link, without writing a record.
