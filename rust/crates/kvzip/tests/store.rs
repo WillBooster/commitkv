@@ -259,6 +259,15 @@ fn refresh_follows_a_directory_whose_segments_were_replaced() {
     let reopened = open(dir.path());
     assert_eq!(reopened.get(b"added").unwrap().unwrap(), b"value");
     assert_eq!(reopened.get(b"later").unwrap().unwrap(), b"value");
+
+    // Checking out an older version of a segment cuts it short.
+    let bytes = fs::read(&segment).unwrap();
+    fs::write(&segment, &bytes[..bytes.len() - 3]).unwrap();
+    store.refresh().unwrap();
+    assert_eq!(store.get(b"later").unwrap(), None);
+    assert_eq!(store.get(b"added").unwrap().unwrap(), b"value");
+    store.put(b"last", b"value").unwrap();
+    assert_eq!(open(dir.path()).len(), 2);
 }
 
 #[test]
