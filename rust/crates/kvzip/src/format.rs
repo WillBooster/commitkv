@@ -77,7 +77,12 @@ fn read_varint(buf: &[u8], pos: &mut usize) -> Option<u64> {
     for shift in (0..64).step_by(7) {
         let byte = *buf.get(*pos)?;
         *pos += 1;
-        value |= u64::from(byte & 0x7f).checked_shl(shift)?;
+        let bits = u64::from(byte & 0x7f);
+        // The tenth byte holds the one remaining bit.
+        if bits << shift >> shift != bits {
+            return None;
+        }
+        value |= bits << shift;
         if byte < 0x80 {
             return Some(value);
         }

@@ -3,7 +3,8 @@ from typing import final
 
 @final
 class Store:
-    """A directory of compressed segments, none of which exceeds ``max_segment_bytes``.
+    """A directory of compressed segments, none of which exceeds ``max_segment_bytes``
+    (32 MiB by default, at most 100,000,000).
 
     A ``str`` key or value stands for its UTF-8 encoding. A store may be shared by threads,
     and several stores, in one process or many, may use the same directory at once.

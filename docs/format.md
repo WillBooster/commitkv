@@ -17,7 +17,8 @@ holds an exclusive advisory lock (`flock`) on it.
 
 ## Which segment a store appends to
 
-A store appends to an existing segment only when all of these hold; otherwise it creates one:
+A store starts appending to an existing segment only when all of these hold; otherwise it
+creates one. It stops appending to a segment once it sees one whose name sorts later.
 
 - The segment's name sorts last in the directory.
 - `.kvzip-writer` names the segment and its current length. The file holds

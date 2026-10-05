@@ -18,7 +18,7 @@ const native = createRequire(import.meta.url)('../native/kvzip.node') as {
 export type Data = string | Uint8Array;
 
 export interface StoreOptions {
-  /** No segment file grows beyond this many bytes (32 MiB by default). */
+  /** No segment file grows beyond this many bytes: 32 MiB by default, at most 100,000,000. */
   maxSegmentBytes?: number;
 }
 

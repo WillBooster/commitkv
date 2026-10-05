@@ -55,14 +55,10 @@ fn values_survive_reopening_and_the_latest_value_of_a_key_wins() {
 #[test]
 fn no_segment_exceeds_the_limit() {
     let dir = tempfile::tempdir().unwrap();
-    let options = Options {
-        max_segment_bytes: SMALL_SEGMENT,
-    };
+    let options = small_segments();
     let store = Store::open(dir.path(), options.clone()).unwrap();
-    // Incompressible values of every size up to just under the limit.
-    let lengths: Vec<usize> = (0..300)
-        .map(|i| (i * 211) % (SMALL_SEGMENT as usize - 100))
-        .collect();
+    // Incompressible values from empty to just under the limit, 211 bytes apart.
+    let lengths: Vec<usize> = (0..300).map(|i| i * 211).collect();
     for (i, &len) in lengths.iter().enumerate() {
         store.put(&key(i), &noise(i as u64, len)).unwrap();
     }
@@ -76,23 +72,36 @@ fn no_segment_exceeds_the_limit() {
             noise(i as u64, len)
         );
     }
+    // A key first written many segments ago.
+    reopened.put(&key(1), b"replaced").unwrap();
+    assert_eq!(reopened.get(&key(1)).unwrap().unwrap(), b"replaced");
+    let again = Store::open(dir.path(), small_segments()).unwrap();
+    assert_eq!(again.get(&key(1)).unwrap().unwrap(), b"replaced");
+}
+
+#[test]
+fn a_put_replaces_what_another_store_wrote_once_it_has_been_seen() {
+    let dir = tempfile::tempdir().unwrap();
+    let (first, second) = (open(dir.path()), open(dir.path()));
+    first.put(b"key", b"first").unwrap();
+    second.put(b"key", b"second").unwrap();
+    first.refresh().unwrap();
+    assert_eq!(first.get(b"key").unwrap().unwrap(), b"second");
+    first.put(b"key", b"third").unwrap();
+    assert_eq!(first.get(b"key").unwrap().unwrap(), b"third");
+    assert_eq!(open(dir.path()).get(b"key").unwrap().unwrap(), b"third");
 }
 
 #[test]
 fn a_record_larger_than_a_segment_is_rejected_without_leaving_a_trace() {
     let dir = tempfile::tempdir().unwrap();
-    let store = Store::open(
-        dir.path(),
-        Options {
-            max_segment_bytes: SMALL_SEGMENT,
-        },
-    )
-    .unwrap();
+    let store = Store::open(dir.path(), small_segments()).unwrap();
     store.put(b"before", b"kept").unwrap();
     let error = store
         .put(b"huge", &noise(0, SMALL_SEGMENT as usize))
         .unwrap_err();
     assert!(matches!(error, Error::RecordTooLarge { .. }), "{error}");
+    assert_eq!(segment_paths(dir.path()).len(), 1);
     store.put(b"after", b"kept too").unwrap();
     assert_eq!(store.get(b"huge").unwrap(), None);
     assert_eq!(store.get(b"before").unwrap().unwrap(), b"kept");
@@ -105,9 +114,7 @@ fn a_record_larger_than_a_segment_is_rejected_without_leaving_a_trace() {
 #[test]
 fn threads_and_stores_sharing_a_directory_lose_nothing() {
     let dir = tempfile::tempdir().unwrap();
-    let options = Options {
-        max_segment_bytes: SMALL_SEGMENT,
-    };
+    let options = small_segments();
     let stores = [
         Store::open(dir.path(), options.clone()).unwrap(),
         Store::open(dir.path(), options.clone()).unwrap(),
@@ -224,6 +231,12 @@ fn checkouts_that_share_history_never_change_the_same_segment() {
     }
     let ignored = fs::read_to_string(origin.path().join(".gitignore")).unwrap();
     assert_eq!(ignored, "/.kvzip-writer\n");
+}
+
+fn small_segments() -> Options {
+    Options {
+        max_segment_bytes: SMALL_SEGMENT,
+    }
 }
 
 fn open(dir: &Path) -> Store {

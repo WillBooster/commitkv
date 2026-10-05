@@ -9,4 +9,4 @@ mod format;
 mod store;
 
 pub use error::{Error, Result};
-pub use store::{Options, Store, DEFAULT_MAX_SEGMENT_BYTES};
+pub use store::{Options, Store, DEFAULT_MAX_SEGMENT_BYTES, MAX_MAX_SEGMENT_BYTES};

@@ -46,12 +46,14 @@ store.refresh(); // pick up what other stores wrote to the directory
 
 ## Behavior
 
-- `put` replaces an earlier value of the key. The earlier record stays in its segment: kvzip
-  never deletes or compacts.
+- `put` replaces every value of the key that the store has seen. The earlier records stay in
+  their segments: kvzip never deletes or compacts.
 - A store reads the directory when it opens and when `refresh` is called; records that other
   stores write in between are invisible until then.
-- When several stores write the same key at the same time, which value wins is unspecified, but
-  every reader picks the same one.
+- Among records of a key that stores wrote without seeing each other's, which one wins is
+  unspecified, but every reader picks the same one.
+- `max_segment_bytes` / `maxSegmentBytes` is at most 100,000,000, which keeps every file under
+  GitHub's 100 MB limit.
 - A record is written with one `write` call and is not synced to disk. After a crash, a store
   ignores a record that was only partly written and everything else remains readable.
 - Each record carries a CRC-32 that is checked whenever it is read.
@@ -59,21 +61,22 @@ store.refresh(); // pick up what other stores wrote to the directory
   last and no other store is writing to it, so short runs do not each leave a small file behind.
   The directory remembers this in `.kvzip-writer`, which kvzip lists in a `.gitignore` it keeps
   in the directory; commit that `.gitignore` with the segments.
-- `get` decodes at most the values written around the requested one (about 1 MiB) and keeps
-  recently decoded values in memory.
+- `get` decodes the values written around the requested one and those at the start of its
+  segment (about 1 MiB each, more when single values are larger) and keeps recently decoded
+  values in memory.
 
 ## Development
 
 ```bash
 mise install               # bun, node, rust, uv
 bun install
-bun run build/native       # builds native/kvzip.node, which the TypeScript wrapper loads
+bun run build              # builds native/kvzip.node and the dist/ that `import 'kvzip'` resolves to
 bun wb test                # Bun tests of the TypeScript API, and pytest through `uv run`
 cargo test --release --manifest-path rust/Cargo.toml
 ```
 
-Rerun `bun run build/native` after changing Rust code; `uv run` rebuilds the Python extension
-module by itself.
+The tests load `native/kvzip.node`: after changing Rust code, rerun `bun run build/native`,
+which builds only that. `uv run` rebuilds the Python extension module by itself.
 
 `cargo run --release --manifest-path rust/Cargo.toml --example lines -- <file>` stores every
 line of a file as a value and reports the stored size and the throughput.

@@ -17,6 +17,9 @@ use crate::{
 
 pub const DEFAULT_MAX_SEGMENT_BYTES: u64 = 32 * 1024 * 1024;
 const MIN_MAX_SEGMENT_BYTES: u64 = 1024;
+/// GitHub rejects files above 100 MiB; staying under 100 MB holds for either reading of the
+/// unit.
+pub const MAX_MAX_SEGMENT_BYTES: u64 = 100_000_000;
 const SEGMENT_EXTENSION: &str = "kvz";
 /// Names the segment this directory's own writer appended to last, and its length then. The
 /// file is git-ignored, so a clone or another worktree never has it.
@@ -60,6 +63,8 @@ type CacheKey = (usize, Option<usize>);
 #[derive(Default)]
 struct State {
     segments: Vec<Segment>,
+    /// The segment whose name sorts last.
+    newest: Option<usize>,
     index: HashMap<Box<[u8]>, Location>,
 }
 
@@ -103,10 +108,10 @@ struct Writer {
 
 impl Store {
     pub fn open(dir: impl AsRef<Path>, options: Options) -> Result<Self> {
-        if !(MIN_MAX_SEGMENT_BYTES..=u64::from(u32::MAX)).contains(&options.max_segment_bytes) {
+        if !(MIN_MAX_SEGMENT_BYTES..=MAX_MAX_SEGMENT_BYTES).contains(&options.max_segment_bytes) {
             return Err(Error::InvalidOptions(format!(
-                "max_segment_bytes must be between {MIN_MAX_SEGMENT_BYTES} and {}",
-                u32::MAX
+                "max_segment_bytes must be between {MIN_MAX_SEGMENT_BYTES} and \
+                 {MAX_MAX_SEGMENT_BYTES}"
             )));
         }
         let dir = dir.as_ref().to_path_buf();
@@ -133,12 +138,23 @@ impl Store {
         ))
     }
 
-    /// Stores `value` under `key`, replacing an earlier value. When several stores write the
-    /// same key concurrently, which value wins is unspecified but the same for every reader.
+    /// Stores `value` under `key`, replacing every value of the key this store has seen. Among
+    /// records of a key that stores wrote without seeing each other's, which one wins is
+    /// unspecified but the same for every reader.
     pub fn put(&self, key: &[u8], value: &[u8]) -> Result<()> {
         let mut writer = self.lock_writer();
         let mut adopt = true;
         loop {
+            // A record in a segment that is no longer the newest would lose to the records of
+            // its key that this store has seen in newer segments.
+            let superseded = writer
+                .as_ref()
+                .and_then(|writer| writer.open.as_ref())
+                .is_some_and(|(segment, _)| Some(*segment) != self.read_state().newest);
+            if superseded {
+                *writer = None;
+                adopt = false;
+            }
             if writer.is_none() {
                 *writer = Some(self.open_writer(adopt)?);
             }
@@ -235,7 +251,9 @@ impl Store {
             }
         }
         added.sort();
-        state.segments.extend(added.into_iter().map(Segment::new));
+        for name in added {
+            state.add_segment(Segment::new(name));
+        }
         for index in 0..state.segments.len() {
             self.scan(state, index)?;
         }
@@ -348,14 +366,10 @@ impl Store {
         }
         let mut state = self.state.write().expect("state lock is not poisoned");
         self.refresh_state(&mut state)?;
-        let Some((index, segment)) = state
-            .segments
-            .iter()
-            .enumerate()
-            .max_by(|(_, a), (_, b)| a.name.cmp(&b.name))
-        else {
+        let Some(index) = state.newest else {
             return Ok(writer);
         };
+        let segment = &state.segments[index];
         let written_here = self
             .read_marker()
             .is_some_and(|(name, len)| name == segment.name && len == segment.scanned);
@@ -394,9 +408,9 @@ impl Store {
                 file.write_all(&[&HEADER, bytes].concat())?;
                 let mut segment = Segment::new(name);
                 segment.scanned = HEADER_LEN;
-                state.segments.push(segment);
-                writer.open = Some((state.segments.len() - 1, file));
-                state.segments.len() - 1
+                let index = state.add_segment(segment);
+                writer.open = Some((index, file));
+                index
             }
         };
         let applied = state.apply(segment, record);
@@ -500,6 +514,18 @@ impl Store {
 }
 
 impl State {
+    fn add_segment(&mut self, segment: Segment) -> usize {
+        let index = self.segments.len();
+        if self
+            .newest
+            .is_none_or(|newest| self.segments[newest].name < segment.name)
+        {
+            self.newest = Some(index);
+        }
+        self.segments.push(segment);
+        index
+    }
+
     /// Adds a record that follows the scanned part of its segment; `false` when the record
     /// cannot be placed, which leaves the state unchanged.
     fn apply(&mut self, segment_index: usize, record: &Record) -> bool {
