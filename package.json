@@ -1,0 +1,39 @@
+{
+  "name": "kvzip",
+  "version": "0.0.0-semantically-released",
+  "description": "Compressed key-value store for git-managed caches: append-only segments that never exceed a size limit, usable from Python, Node.js, and Bun",
+  "keywords": [
+    "cache",
+    "compression",
+    "git",
+    "key-value",
+    "zstd"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WillBooster/kvzip.git"
+  },
+  "license": "Apache-2.0",
+  "author": "WillBooster Inc.",
+  "type": "module",
+  "scripts": {
+    "cleanup": "bun wb lint --fix --format",
+    "format": "bun wb lint --format",
+    "lint": "bun wb lint",
+    "lint-fix": "bun wb lint --fix",
+    "prepare": "(bun lefthook install || true) && (test ! -f .lefthook/normalize-bun-lockfile.sh || bash .lefthook/normalize-bun-lockfile.sh)",
+    "test": "bun wb test",
+    "test/ci": "bun wb test-on-ci",
+    "verify": "bun wb verify",
+    "verify-full": "bun wb verify --full"
+  },
+  "devDependencies": {
+    "@willbooster/wb": "22.18.0",
+    "lefthook": "2.1.14",
+    "sort-package-json": "4.0.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}
