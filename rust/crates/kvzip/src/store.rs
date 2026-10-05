@@ -235,10 +235,12 @@ impl Store {
                 let path = self.dir.join(&state.segments[*segment].name);
                 !is_same_file(file, &path)
             });
-        if self.refresh_state(&mut state)? || detached {
+        let rebuilt = self.refresh_state(&mut state);
+        // A refresh that fails may have rebuilt the state before it failed.
+        if detached || !matches!(rebuilt, Ok(false)) {
             *writer = None;
         }
-        Ok(())
+        rebuilt.map(|_| ())
     }
 
     fn lock_writer(&self) -> MutexGuard<'_, Option<Writer>> {
