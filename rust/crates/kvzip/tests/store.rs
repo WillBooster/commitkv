@@ -279,6 +279,21 @@ fn symbolic_links_in_the_directory_are_not_followed() {
         assert_eq!(fs::read_to_string(&target).unwrap(), "untouched");
         assert_eq!(segment_paths(dir.path()).len(), 1, "only the link");
     }
+
+    // A segment the store has read is replaced by a link to a file with the same bytes.
+    let dir = tempfile::tempdir().unwrap();
+    let store = open(dir.path());
+    store.put(b"key", b"value").unwrap();
+    let segment = segment_paths(dir.path()).remove(0);
+    let moved = outside.path().join("moved");
+    fs::rename(&segment, &moved).unwrap();
+    symlink(&moved, &segment).unwrap();
+    let moved_bytes = fs::read(&moved).unwrap();
+    store.refresh().unwrap();
+    assert_eq!(store.get(b"key").unwrap(), None);
+    store.put(b"later", b"value").unwrap();
+    assert_eq!(fs::read(&moved).unwrap(), moved_bytes);
+    assert_eq!(open(dir.path()).keys(), [b"later".to_vec()]);
 }
 
 fn small_segments() -> Options {

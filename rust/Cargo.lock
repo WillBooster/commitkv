@@ -192,6 +192,7 @@ name = "kvzip"
 version = "0.0.0"
 dependencies = [
  "crc32fast",
+ "libc",
  "tempfile",
  "zstd-safe",
 ]

@@ -9,6 +9,7 @@ publish = false
 
 [dependencies]
 crc32fast = "1"
+libc = "0.2"
 zstd-safe = { version = "8", features = ["std"] }
 
 [dev-dependencies]

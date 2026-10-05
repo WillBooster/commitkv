@@ -3,7 +3,7 @@ use std::{
     fs::{self, File, OpenOptions},
     hash::{BuildHasher, RandomState},
     io::{self, Read, Seek, SeekFrom, Write},
-    os::unix::fs::MetadataExt,
+    os::unix::fs::{MetadataExt, OpenOptionsExt},
     path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard, RwLock},
     time::{SystemTime, UNIX_EPOCH},
@@ -268,11 +268,9 @@ impl Store {
                 if path.extension().is_none_or(|ext| ext != SEGMENT_EXTENSION) {
                     continue;
                 }
-                // A directory or a FIFO with the extension is not a segment, and opening a FIFO
-                // would block. Neither is a symbolic link: a cache that came through git must
-                // not make the store reach outside its directory. An entry removed since it
-                // was listed is no segment either; any other failure must not pass for an
-                // empty cache.
+                // A directory, a FIFO (opening one would block) or a symbolic link with the
+                // extension is not a segment, and neither is an entry removed since it was
+                // listed; any other failure must not pass for an empty cache.
                 match fs::symlink_metadata(&path) {
                     Ok(metadata) if metadata.is_file() => added.push(name.to_owned()),
                     Ok(_) => {}
@@ -306,9 +304,15 @@ impl Store {
     /// `false` when the segment no longer holds what was scanned.
     fn scan(&self, state: &mut State, index: usize) -> Result<bool> {
         let segment = &state.segments[index];
-        let mut file = match File::open(self.dir.join(&segment.name)) {
+        let mut file = match self.open_file(&segment.name, OpenOptions::new().read(true)) {
             Ok(file) => file,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+            // Removed, or replaced by a symbolic link.
+            Err(error)
+                if error.kind() == io::ErrorKind::NotFound
+                    || error.raw_os_error() == Some(libc::ELOOP) =>
+            {
+                return Ok(false)
+            }
             Err(error) => return Err(error.into()),
         };
         let len = file.metadata()?.len();
@@ -354,7 +358,7 @@ impl Store {
         let group = &segment.groups[location.group];
         let base = self.base(state, location.segment, group.base_len)?;
         let end = segment.group_end(location.group);
-        let bytes = read_range(&self.dir.join(&segment.name), group.offset, end)?;
+        let bytes = self.read_range(&segment.name, group.offset, end)?;
         let raw: Arc<[u8]> = decode_records(&base[..group.base_len], &bytes)?.into();
         self.lock_cache().insert(key, raw.clone());
         Ok(raw)
@@ -378,7 +382,7 @@ impl Store {
             .count();
         let start = segment.groups[0].offset;
         let end = segment.group_end(group_count - 1);
-        let bytes = read_range(&self.dir.join(&segment.name), start, end)?;
+        let bytes = self.read_range(&segment.name, start, end)?;
         let mut base = Vec::new();
         for index in 0..group_count {
             let range = (segment.groups[index].offset - start) as usize
@@ -424,9 +428,7 @@ impl Store {
         if !written_here || segment.scanned >= self.max_segment_bytes {
             return Ok(writer);
         }
-        let file = OpenOptions::new()
-            .append(true)
-            .open(self.dir.join(&segment.name))?;
+        let file = self.open_file(&segment.name, OpenOptions::new().append(true))?;
         // The length differs when the segment ends in an invalid record or another store
         // appended to it between the scan and the lock.
         if file.try_lock().is_ok() && file.metadata()?.len() == segment.scanned {
@@ -486,7 +488,7 @@ impl Store {
     }
 
     fn read_marker(&self) -> Option<(String, u64)> {
-        let text = fs::read_to_string(self.dir.join(MARKER_NAME)).ok()?;
+        let text = self.read_text(MARKER_NAME).ok()?;
         let (name, len) = text.trim_end().split_once(' ')?;
         Some((name.to_owned(), len.parse().ok()?))
     }
@@ -494,18 +496,9 @@ impl Store {
     /// Opens the marker, emptied, after making sure git ignores it: a committed marker would
     /// let other checkouts append to the segment it names.
     fn open_marker(&self) -> io::Result<File> {
-        let ignore_path = self.dir.join(".gitignore");
-        let marker_path = self.dir.join(MARKER_NAME);
-        // Both files are written to, and a cache that came through git may hold a symbolic
-        // link under either name.
-        for path in [&ignore_path, &marker_path] {
-            if fs::symlink_metadata(path).is_ok_and(|metadata| !metadata.is_file()) {
-                let message = format!("{} is not a regular file", path.display());
-                return Err(io::Error::new(io::ErrorKind::InvalidInput, message));
-            }
-        }
+        const IGNORE_NAME: &str = ".gitignore";
         let ignore_line = format!("/{MARKER_NAME}");
-        let ignored = match fs::read_to_string(&ignore_path) {
+        let ignored = match self.read_text(IGNORE_NAME) {
             Ok(ignored) => ignored,
             Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
             Err(error) => return Err(error),
@@ -516,19 +509,37 @@ impl Store {
             } else {
                 "\n"
             };
-            OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open(&ignore_path)
+            self.open_file(IGNORE_NAME, OpenOptions::new().append(true).create(true))
                 .and_then(|mut file| {
                     file.write_all(format!("{separator}{ignore_line}\n").as_bytes())
                 })?;
         }
-        OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(marker_path)
+        let mut options = OpenOptions::new();
+        self.open_file(MARKER_NAME, options.write(true).create(true).truncate(true))
+    }
+
+    /// Opens a file of the directory. Every open goes through here so that a symbolic link is
+    /// never followed: a cache that came through git must not make the store read or write
+    /// outside its directory.
+    fn open_file(&self, name: &str, options: &mut OpenOptions) -> io::Result<File> {
+        options
+            .custom_flags(libc::O_NOFOLLOW)
+            .open(self.dir.join(name))
+    }
+
+    fn read_text(&self, name: &str) -> io::Result<String> {
+        let mut text = String::new();
+        self.open_file(name, OpenOptions::new().read(true))?
+            .read_to_string(&mut text)?;
+        Ok(text)
+    }
+
+    fn read_range(&self, segment_name: &str, start: u64, end: u64) -> Result<Vec<u8>> {
+        let mut file = self.open_file(segment_name, OpenOptions::new().read(true))?;
+        file.seek(SeekFrom::Start(start))?;
+        let mut bytes = vec![0; (end - start) as usize];
+        file.read_exact(&mut bytes)?;
+        Ok(bytes)
     }
 
     /// Creates a segment whose name sorts after every known one and locks it against other
@@ -546,10 +557,7 @@ impl Store {
         loop {
             let random = RandomState::new().hash_one(time) as u32;
             let name = format!("{time:016x}-{random:08x}.{SEGMENT_EXTENSION}");
-            let created = OpenOptions::new()
-                .append(true)
-                .create_new(true)
-                .open(self.dir.join(&name));
+            let created = self.open_file(&name, OpenOptions::new().append(true).create_new(true));
             match created {
                 Ok(file) => {
                     file.try_lock()
@@ -647,14 +655,6 @@ fn is_same_file(file: &File, path: &Path) -> bool {
         (Ok(open), Ok(named)) => (open.dev(), open.ino()) == (named.dev(), named.ino()),
         _ => false,
     }
-}
-
-fn read_range(path: &Path, start: u64, end: u64) -> Result<Vec<u8>> {
-    let mut file = File::open(path)?;
-    file.seek(SeekFrom::Start(start))?;
-    let mut bytes = vec![0; (end - start) as usize];
-    file.read_exact(&mut bytes)?;
-    Ok(bytes)
 }
 
 /// Decodes the values of the records that make up one group.
