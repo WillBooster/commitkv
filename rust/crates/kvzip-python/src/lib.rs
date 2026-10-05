@@ -30,8 +30,8 @@ struct Store {
     inner: kvzip::Store,
 }
 
-// Every method that touches the disk detaches from the interpreter so that other Python
-// threads run meanwhile.
+// Every method detaches from the interpreter while it is in the store, which reads and writes
+// the disk or waits for a thread that does, so that other Python threads run meanwhile.
 #[pymethods]
 impl Store {
     #[new]
@@ -56,16 +56,16 @@ impl Store {
             .map_err(to_py_error)
     }
 
-    fn __contains__(&self, key: Data) -> bool {
-        self.inner.contains(key.as_bytes())
+    fn __contains__(&self, py: Python<'_>, key: Data) -> bool {
+        py.detach(|| self.inner.contains(key.as_bytes()))
     }
 
-    fn __len__(&self) -> usize {
-        self.inner.len()
+    fn __len__(&self, py: Python<'_>) -> usize {
+        py.detach(|| self.inner.len())
     }
 
     fn keys<'py>(&self, py: Python<'py>) -> Vec<Bound<'py, PyBytes>> {
-        let keys = self.inner.keys();
+        let keys = py.detach(|| self.inner.keys());
         keys.iter().map(|key| PyBytes::new(py, key)).collect()
     }
 

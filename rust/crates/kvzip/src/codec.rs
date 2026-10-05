@@ -70,12 +70,15 @@ impl GroupEncoder {
     }
 }
 
-/// Decodes the values of a group from the payloads of its records, in order.
-pub fn decode_group<'a>(
-    prefix: &[u8],
-    payloads: impl Iterator<Item = &'a [u8]>,
-    raw_len: usize,
-) -> Result<Vec<u8>> {
+/// Decodes the values of a group from its records in order, each given as its payload and the
+/// length of the value it declares.
+pub fn decode_group(prefix: &[u8], records: &[(&[u8], u64)]) -> Result<Vec<u8>> {
+    let raw_len = records
+        .iter()
+        .try_fold(0usize, |total, (_, value_len)| {
+            total.checked_add(usize::try_from(*value_len).ok()?)
+        })
+        .ok_or_else(|| Error::Corrupt("a group declares more bytes than fit".into()))?;
     let mut dctx = DCtx::create();
     // Frames written by a store never declare more, and a larger declared window would size
     // the decoder's buffer before a single byte is checked.
@@ -84,8 +87,9 @@ pub fn decode_group<'a>(
     dctx.ref_prefix(prefix).map_err(zstd_error)?;
     let mut raw = Vec::new();
     raw.try_reserve_exact(raw_len)
-        .map_err(|_| Error::Corrupt(format!("group declares {raw_len} bytes")))?;
-    for payload in payloads {
+        .map_err(|_| Error::Corrupt(format!("a group declares {raw_len} bytes")))?;
+    for (payload, value_len) in records {
+        let value_end = raw.len() + *value_len as usize;
         let mut input = InBuffer::around(payload);
         while input.pos() < payload.len() {
             let (consumed, produced) = (input.pos(), raw.len());
@@ -93,12 +97,14 @@ pub fn decode_group<'a>(
             dctx.decompress_stream(&mut output, &mut input)
                 .map_err(zstd_error)?;
             if input.pos() == consumed && raw.len() == produced {
-                return Err(Error::Corrupt("group is longer than declared".into()));
+                return Err(Error::Corrupt("a group is longer than declared".into()));
             }
         }
-    }
-    if raw.len() != raw_len {
-        return Err(Error::Corrupt("group is shorter than declared".into()));
+        // Values are addressed by their declared lengths, so each payload must end exactly
+        // where its value does.
+        if raw.len() != value_end {
+            return Err(Error::Corrupt("a value is not as long as declared".into()));
+        }
     }
     Ok(raw)
 }

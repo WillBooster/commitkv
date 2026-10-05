@@ -1,6 +1,9 @@
 //! Node-API addon; `src/index.ts` wraps it in the public TypeScript API.
 
-use napi::bindgen_prelude::{Buffer, Error, Result};
+use napi::{
+    bindgen_prelude::{Buffer, Error, Result},
+    Status,
+};
 use napi_derive::napi;
 
 #[napi]
@@ -53,6 +56,11 @@ impl Store {
     }
 }
 
+/// The status becomes the `code` of the JavaScript error, which `src/index.ts` documents.
 fn to_js_error(error: kvzip::Error) -> Error {
-    Error::from_reason(error.to_string())
+    let status = match error {
+        kvzip::Error::RecordTooLarge { .. } | kvzip::Error::InvalidOptions(_) => Status::InvalidArg,
+        kvzip::Error::Io(_) | kvzip::Error::Corrupt(_) => Status::GenericFailure,
+    };
+    Error::new(status, error.to_string())
 }

@@ -692,18 +692,13 @@ fn is_same_file(file: &File, path: &Path) -> bool {
 
 /// Decodes the values of the records that make up one group.
 fn decode_records(prefix: &[u8], bytes: &[u8]) -> Result<Vec<u8>> {
-    let mut payloads = Vec::new();
-    let mut raw_len = 0usize;
+    let mut records = Vec::new();
     let mut pos = 0;
     while pos < bytes.len() {
         let record = parse_record(&bytes[pos..])
             .ok_or_else(|| Error::Corrupt("a record changed after it was read".into()))?;
-        payloads.push(record.payload);
-        raw_len = usize::try_from(record.raw_len)
-            .ok()
-            .and_then(|record_raw_len| raw_len.checked_add(record_raw_len))
-            .ok_or_else(|| Error::Corrupt("a group declares more bytes than fit".into()))?;
+        records.push((record.payload, record.raw_len));
         pos += record.len;
     }
-    decode_group(prefix, payloads.into_iter(), raw_len)
+    decode_group(prefix, &records)
 }

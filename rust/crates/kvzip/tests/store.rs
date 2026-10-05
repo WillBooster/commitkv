@@ -353,6 +353,33 @@ fn value_lengths_that_cannot_be_addressed_are_reported_not_trusted() {
 }
 
 #[test]
+fn values_that_are_not_as_long_as_their_records_declare_are_reported() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = open(dir.path());
+    store.put(b"a", &noise(1, 5)).unwrap();
+    store.put(b"b", &noise(2, 95)).unwrap();
+    drop(store);
+
+    // Swap the two declared value lengths, which keeps their sum, and redo the checksums.
+    // Every length here fits in one byte: kind, key length, key, value length, payload length.
+    let segment = segment_paths(dir.path()).remove(0);
+    let mut bytes = fs::read(&segment).unwrap();
+    let first = 8;
+    let second = first + 5 + bytes[first + 4] as usize + 4;
+    bytes.swap(first + 3, second + 3);
+    for (start, end) in [(first, second), (second, bytes.len())] {
+        let crc = crc32fast::hash(&bytes[start..end - 4]).to_le_bytes();
+        bytes[end - 4..end].copy_from_slice(&crc);
+    }
+    fs::write(&segment, bytes).unwrap();
+
+    let store = open(dir.path());
+    assert_eq!(store.len(), 2);
+    assert!(matches!(store.get(b"a"), Err(Error::Corrupt(_))));
+    assert!(matches!(store.get(b"b"), Err(Error::Corrupt(_))));
+}
+
+#[test]
 fn a_put_fails_rather_than_lose_to_a_segment_no_name_can_follow() {
     let dir = tempfile::tempdir().unwrap();
     open(dir.path()).put(b"key", b"old").unwrap();

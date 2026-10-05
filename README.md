@@ -56,6 +56,9 @@ store.refresh(); // pick up what other stores wrote to the directory
   unspecified, but every reader picks the same one.
 - `max_segment_bytes` / `maxSegmentBytes` must be between 1,024 and 100,000,000; the upper
   bound keeps every file under GitHub's 100 MB limit.
+- An option out of range and a record that does not fit in a segment raise `ValueError` in
+  Python and an error whose `code` is `'InvalidArg'` in TypeScript. An I/O failure raises
+  `OSError` and a corrupt store `RuntimeError`; both have the `code` `'GenericFailure'`.
 - A record is written with one `write` call and is not synced to disk. After a crash, a store
   ignores a record that was only partly written and everything else remains readable.
 - Each record carries a CRC-32 that is checked whenever it is read.

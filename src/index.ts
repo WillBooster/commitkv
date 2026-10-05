@@ -25,6 +25,9 @@ export interface StoreOptions {
 /**
  * A directory of compressed segments, none of which exceeds `maxSegmentBytes`. Several stores,
  * in one process or many, may use the same directory at once.
+ *
+ * Errors carry a `code`: `'InvalidArg'` for an option out of range or a record that does not
+ * fit in a segment, `'GenericFailure'` for an I/O failure or a corrupt store.
  */
 export class Store {
   readonly #native: NativeStore;
@@ -37,7 +40,10 @@ export class Store {
     return this.#native.get(toBytes(key)) ?? undefined;
   }
 
-  /** Stores a value, replacing an earlier one. Throws when the record does not fit in a segment. */
+  /**
+   * Stores a value, replacing an earlier one. Throws an error whose `code` is `'InvalidArg'`
+   * when the record does not fit in a segment.
+   */
   put(key: Data, value: Data): void {
     this.#native.put(toBytes(key), toBytes(value));
   }
