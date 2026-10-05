@@ -57,5 +57,6 @@ def test_a_record_that_does_not_fit_is_rejected_and_no_segment_exceeds_the_limit
     sizes = [path.stat().st_size for path in tmp_path.glob("*.kvz")]
     assert len(sizes) > 1
     assert max(sizes) <= max_segment_bytes
-    with pytest.raises(ValueError, match="max_segment_bytes"):
-        Store(tmp_path, max_segment_bytes=1)
+    for out_of_range in (1, -1, 2**64):
+        with pytest.raises(ValueError, match="max_segment_bytes"):
+            Store(tmp_path, max_segment_bytes=out_of_range)

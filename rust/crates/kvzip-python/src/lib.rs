@@ -6,7 +6,7 @@ use pyo3::{
     exceptions::{PyOSError, PyRuntimeError, PyValueError},
     prelude::*,
     pybacked::{PyBackedBytes, PyBackedStr},
-    types::PyBytes,
+    types::{PyBytes, PyInt},
 };
 
 /// A key or a value; a `str` stands for its UTF-8 encoding.
@@ -35,9 +35,18 @@ struct Store {
 #[pymethods]
 impl Store {
     #[new]
-    #[pyo3(signature = (directory, *, max_segment_bytes = kvzip::DEFAULT_MAX_SEGMENT_BYTES))]
-    fn new(py: Python<'_>, directory: PathBuf, max_segment_bytes: u64) -> PyResult<Self> {
-        let options = kvzip::Options { max_segment_bytes };
+    #[pyo3(signature = (directory, *, max_segment_bytes = None))]
+    fn new(
+        py: Python<'_>,
+        directory: PathBuf,
+        max_segment_bytes: Option<&Bound<'_, PyInt>>,
+    ) -> PyResult<Self> {
+        let mut options = kvzip::Options::default();
+        if let Some(max_segment_bytes) = max_segment_bytes {
+            // An integer that is not a `u64` is out of range like 0, which the store rejects
+            // with the error every other out-of-range value gets.
+            options.max_segment_bytes = max_segment_bytes.extract().unwrap_or(0);
+        }
         let inner = py
             .detach(|| kvzip::Store::open(directory, options))
             .map_err(to_py_error)?;
