@@ -54,8 +54,8 @@ store.refresh(); // pick up what other stores wrote to the directory
   replacing segments under an open store, for example by checking out another branch.
 - Among records of a key that stores wrote without seeing each other's, which one wins is
   unspecified, but every reader picks the same one.
-- `max_segment_bytes` / `maxSegmentBytes` is at most 100,000,000, which keeps every file under
-  GitHub's 100 MB limit.
+- `max_segment_bytes` / `maxSegmentBytes` must be between 1,024 and 100,000,000; the upper
+  bound keeps every file under GitHub's 100 MB limit.
 - A record is written with one `write` call and is not synced to disk. After a crash, a store
   ignores a record that was only partly written and everything else remains readable.
 - Each record carries a CRC-32 that is checked whenever it is read.

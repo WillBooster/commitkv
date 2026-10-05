@@ -30,7 +30,11 @@ impl<K: Hash + Eq + Clone> ByteCache<K> {
         Some(entry.data.clone())
     }
 
+    /// Does nothing when `data` alone exceeds the budget.
     pub fn insert(&mut self, key: K, data: Arc<[u8]>) {
+        if data.len() > self.max_bytes {
+            return;
+        }
         self.clock += 1;
         self.bytes += data.len();
         let entry = Entry {
@@ -40,7 +44,7 @@ impl<K: Hash + Eq + Clone> ByteCache<K> {
         if let Some(replaced) = self.entries.insert(key, entry) {
             self.bytes -= replaced.data.len();
         }
-        while self.bytes > self.max_bytes && self.entries.len() > 1 {
+        while self.bytes > self.max_bytes {
             let oldest = self
                 .entries
                 .iter()
