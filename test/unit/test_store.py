@@ -10,17 +10,17 @@ from kvzip import Store
 def test_values_written_as_str_and_bytes_survive_reopening(tmp_path: Path) -> None:
     binary = bytes([0, 255, 128, 10])
     store = Store(tmp_path)
-    store.put("text", "こんにちは")
+    store.put("é", "first")
     store.put(binary, binary)
-    store.put("text", "replaced")
+    store.put("é", "こんにちは")
 
     reopened = Store(str(tmp_path))
-    assert reopened.get("text") == b"replaced"
+    assert reopened.get("é") == "こんにちは".encode()
     assert reopened.get(binary) == binary
     assert reopened.get("missing") is None
-    assert "text" in reopened and b"text" in reopened and "missing" not in reopened
+    assert "é" in reopened and "é".encode() in reopened and "missing" not in reopened
     assert len(reopened) == 2
-    assert sorted(reopened.keys()) == [binary, b"text"]
+    assert sorted(reopened.keys()) == [binary, "é".encode()]
 
 
 def test_a_store_sees_what_another_store_wrote_after_refresh(tmp_path: Path) -> None:

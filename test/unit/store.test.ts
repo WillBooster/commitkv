@@ -9,15 +9,15 @@ test('values written as strings and bytes survive reopening', () => {
   const directory = temporaryDirectory();
   const binary = new Uint8Array([0, 255, 128, 10]);
   const store = new Store(directory);
-  store.put('text', 'こんにちは');
+  store.put('é', 'first');
   store.put(binary, binary);
-  store.put('text', 'replaced');
+  store.put('é', 'こんにちは');
 
   const reopened = new Store(directory);
-  expect(reopened.get('text')?.toString()).toBe('replaced');
+  expect(reopened.get('é')?.toString()).toBe('こんにちは');
   expect(new Uint8Array(reopened.get(binary) ?? [])).toEqual(binary);
   expect(reopened.get('missing')).toBeUndefined();
-  expect(reopened.has('text')).toBe(true);
+  expect(reopened.has('é')).toBe(true);
   expect(reopened.has('missing')).toBe(false);
   expect(reopened.size).toBe(2);
   expect(
@@ -25,7 +25,7 @@ test('values written as strings and bytes survive reopening', () => {
       .keys()
       .map((key) => key.toString('hex'))
       .toSorted()
-  ).toEqual(['00ff800a', '74657874']);
+  ).toEqual(['00ff800a', 'c3a9']);
 });
 
 test('a store sees what another store wrote after refresh', () => {
