@@ -296,6 +296,22 @@ fn symbolic_links_in_the_directory_are_not_followed() {
     assert_eq!(open(dir.path()).keys(), [b"later".to_vec()]);
 }
 
+#[test]
+fn a_segment_of_another_format_version_is_neither_read_nor_changed() {
+    let dir = tempfile::tempdir().unwrap();
+    open(dir.path()).put(b"key", b"value").unwrap();
+    let segment = segment_paths(dir.path()).remove(0);
+    let mut bytes = fs::read(&segment).unwrap();
+    bytes[7] = 2;
+    fs::write(&segment, &bytes).unwrap();
+
+    let store = open(dir.path());
+    assert_eq!(store.len(), 0);
+    store.put(b"other", b"value").unwrap();
+    assert_eq!(fs::read(&segment).unwrap(), bytes);
+    assert_eq!(open(dir.path()).keys(), [b"other".to_vec()]);
+}
+
 fn small_segments() -> Options {
     Options {
         max_segment_bytes: SMALL_SEGMENT,

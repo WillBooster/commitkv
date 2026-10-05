@@ -1,8 +1,9 @@
 # Segment format (version 1)
 
 Committed caches hold segments forever, so a store must keep reading every segment a released
-version wrote. A change that alters any rule below needs a new version byte and a reader for the
-old one.
+version wrote. A change to a rule in "Directory", "Segment", "Groups", or "Which record of a key
+is current" needs a new version byte and a reader for the old one. A segment whose header is not
+the one below contributes no records and is never appended to.
 
 ## Directory
 
@@ -12,25 +13,8 @@ A store is a directory of segment files named `<time>-<random>.kvz`:
   raised when necessary so that the name sorts after every segment the creating store knows.
 - `<random>`: 8 lowercase hex digits.
 
-Files with another extension are ignored, and so is anything that is not a regular file: a
-store never follows a symbolic link in its directory. A segment is only ever appended to, by the store that
-holds an exclusive advisory lock (`flock`) on it.
-
-## Which segment a store appends to
-
-A store starts appending to an existing segment only when all of these hold; otherwise it
-creates one. It stops appending to a segment once it sees one whose name sorts later.
-
-- The segment's name sorts last in the directory.
-- `.kvzip-writer` names the segment and its current length. The file holds
-  `<segment name> <length as 20 decimal digits>\n`. A store rewrites it before every record
-  with the length the segment will have, and does not write the record when that fails.
-- The segment ends in a valid record, is shorter than the limit, and its lock is free.
-
-A store lists `/.kvzip-writer` in the directory's `.gitignore` before it creates the file, so the
-file never travels through git. A segment is therefore extended only in the directory that
-created it and only from the state that directory left it in: all versions of a segment that
-ever exist are prefixes of one another, and two branches cannot both change one segment.
+Entries with another extension are not segments, and neither is an entry that is not a regular
+file. A store never follows a symbolic link in its directory.
 
 ## Segment
 
@@ -74,3 +58,25 @@ holds at least `GROUP_RAW_TARGET` (1 MiB) of values. Frames use a window of 4 Mi
 
 The record in the segment whose name sorts last; within a segment, the record at the highest
 offset.
+
+## Which segment a store appends to
+
+No reader depends on the rules of this section: they only keep writers from changing a segment
+on two branches, and may change without a new version.
+
+A segment is only ever appended to, by the store that holds an exclusive advisory lock (`flock`)
+on it. A store starts appending to an existing segment only when all of these hold; otherwise it
+creates one. It stops appending to a segment once it sees one whose name sorts later.
+
+- The segment's name sorts last in the directory.
+- `.kvzip-writer` names the segment and its current length. The file holds
+  `<segment name> <length as 20 decimal digits>\n`. A store rewrites it before every record
+  with the length the segment will have, and does not write the record when that fails.
+- The segment ends in a valid record, is shorter than the limit, and its lock is free.
+
+A store lists `/.kvzip-writer` in the directory's `.gitignore` before it creates the file, so the
+file never travels through git. A segment is therefore extended only in the directory that
+created it and only from the state that directory left it in: all versions of a segment that
+ever exist are prefixes of one another, and two branches cannot both change one segment.
+
+`put` fails when `.gitignore` or `.kvzip-writer` is a symbolic link, without writing a record.

@@ -48,9 +48,10 @@ store.refresh(); // pick up what other stores wrote to the directory
 
 - `put` replaces every value of the key that the store has seen. The earlier records stay in
   their segments: kvzip never deletes or compacts.
-- A store reads the directory when it opens and when `refresh` is called; records that other
-  stores write in between are invisible until then. Call `refresh` as well after replacing
-  segments under an open store, for example by checking out another branch.
+- A store reads the directory when it opens, when `refresh` is called, and when a `put` starts
+  writing (the first `put`, and the first after a failed one); records that other stores write
+  stay invisible until one of those happens. Call `refresh` after
+  replacing segments under an open store, for example by checking out another branch.
 - Among records of a key that stores wrote without seeing each other's, which one wins is
   unspecified, but every reader picks the same one.
 - `max_segment_bytes` / `maxSegmentBytes` is at most 100,000,000, which keeps every file under
