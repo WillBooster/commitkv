@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = ["crates/kvzip", "crates/kvzip-node", "crates/kvzip-python"]
+
+[workspace.package]
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/WillBooster/kvzip"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

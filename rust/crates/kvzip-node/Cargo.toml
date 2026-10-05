@@ -1,0 +1,18 @@
+[package]
+name = "kvzip-node"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+kvzip = { path = "../kvzip" }
+napi = "3"
+napi-derive = "3"
+
+[build-dependencies]
+napi-build = "2"

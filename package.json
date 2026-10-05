@@ -16,7 +16,21 @@
   "license": "Apache-2.0",
   "author": "WillBooster Inc.",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/",
+    "native/"
+  ],
   "scripts": {
+    "build": "bun run build/native && build-ts lib --input src/index.ts --module-type esm",
+    "build/native": "bun scripts/buildNative.ts",
     "cleanup": "bun wb lint --fix --format",
     "format": "bun wb lint --format",
     "lint": "bun wb lint",
@@ -24,13 +38,24 @@
     "prepare": "(bun lefthook install || true) && (test ! -f .lefthook/normalize-bun-lockfile.sh || bash .lefthook/normalize-bun-lockfile.sh)",
     "test": "bun wb test",
     "test/ci": "bun wb test-on-ci",
+    "test/ci-setup": "bun run build/native && uv sync --frozen",
+    "typecheck": "bun wb typecheck",
     "verify": "bun wb verify",
     "verify-full": "bun wb verify --full"
   },
   "devDependencies": {
+    "@tsconfig/bun": "1.0.11",
+    "@types/bun": "1.4.2",
+    "@willbooster/oxfmt-config": "1.2.2",
+    "@willbooster/oxlint-config": "1.4.8",
     "@willbooster/wb": "22.18.0",
+    "build-ts": "21.0.19",
     "lefthook": "2.1.14",
-    "sort-package-json": "4.0.0"
+    "oxfmt": "0.70.0",
+    "oxlint": "1.85.0",
+    "oxlint-tsgolint": "7.0.2003",
+    "sort-package-json": "4.0.0",
+    "typescript": "7.0.2"
   },
   "publishConfig": {
     "access": "public",
