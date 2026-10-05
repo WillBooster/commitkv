@@ -251,14 +251,22 @@ impl Store {
             let mut added = Vec::new();
             for entry in fs::read_dir(&self.dir)? {
                 let path = entry?.path();
+                let name = path.file_name().and_then(|name| name.to_str());
+                let Some(name) = name.filter(|name| !known.contains(name)) else {
+                    continue;
+                };
+                if path.extension().is_none_or(|ext| ext != SEGMENT_EXTENSION) {
+                    continue;
+                }
                 // Following symbolic links; a directory or a FIFO with the extension is not a
-                // segment, and opening a FIFO would block.
-                let is_segment = path.extension().is_some_and(|ext| ext == SEGMENT_EXTENSION)
-                    && fs::metadata(&path).is_ok_and(|metadata| metadata.is_file());
-                if let Some(name) = path.file_name().and_then(|name| name.to_str()) {
-                    if is_segment && !known.contains(name) {
-                        added.push(name.to_owned());
-                    }
+                // segment, and opening a FIFO would block. An entry removed since it was
+                // listed is no segment either; any other failure must not pass for an empty
+                // cache.
+                match fs::metadata(&path) {
+                    Ok(metadata) if metadata.is_file() => added.push(name.to_owned()),
+                    Ok(_) => {}
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                    Err(error) => return Err(error.into()),
                 }
             }
             added.sort();
