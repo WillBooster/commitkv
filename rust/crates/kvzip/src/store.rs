@@ -268,11 +268,12 @@ impl Store {
                 if path.extension().is_none_or(|ext| ext != SEGMENT_EXTENSION) {
                     continue;
                 }
-                // Following symbolic links; a directory or a FIFO with the extension is not a
-                // segment, and opening a FIFO would block. An entry removed since it was
-                // listed is no segment either; any other failure must not pass for an empty
-                // cache.
-                match fs::metadata(&path) {
+                // A directory or a FIFO with the extension is not a segment, and opening a FIFO
+                // would block. Neither is a symbolic link: a cache that came through git must
+                // not make the store reach outside its directory. An entry removed since it
+                // was listed is no segment either; any other failure must not pass for an
+                // empty cache.
+                match fs::symlink_metadata(&path) {
                     Ok(metadata) if metadata.is_file() => added.push(name.to_owned()),
                     Ok(_) => {}
                     Err(error) if error.kind() == io::ErrorKind::NotFound => {}
@@ -494,6 +495,15 @@ impl Store {
     /// let other checkouts append to the segment it names.
     fn open_marker(&self) -> io::Result<File> {
         let ignore_path = self.dir.join(".gitignore");
+        let marker_path = self.dir.join(MARKER_NAME);
+        // Both files are written to, and a cache that came through git may hold a symbolic
+        // link under either name.
+        for path in [&ignore_path, &marker_path] {
+            if fs::symlink_metadata(path).is_ok_and(|metadata| !metadata.is_file()) {
+                let message = format!("{} is not a regular file", path.display());
+                return Err(io::Error::new(io::ErrorKind::InvalidInput, message));
+            }
+        }
         let ignore_line = format!("/{MARKER_NAME}");
         let ignored = match fs::read_to_string(&ignore_path) {
             Ok(ignored) => ignored,
@@ -518,7 +528,7 @@ impl Store {
             .write(true)
             .create(true)
             .truncate(true)
-            .open(self.dir.join(MARKER_NAME))
+            .open(marker_path)
     }
 
     /// Creates a segment whose name sorts after every known one and locks it against other

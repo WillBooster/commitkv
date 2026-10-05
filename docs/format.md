@@ -12,7 +12,8 @@ A store is a directory of segment files named `<time>-<random>.kvz`:
   raised when necessary so that the name sorts after every segment the creating store knows.
 - `<random>`: 8 lowercase hex digits.
 
-Files with another extension are ignored. A segment is only ever appended to, by the store that
+Files with another extension are ignored, and so is anything that is not a regular file: a
+store never follows a symbolic link in its directory. A segment is only ever appended to, by the store that
 holds an exclusive advisory lock (`flock`) on it.
 
 ## Which segment a store appends to

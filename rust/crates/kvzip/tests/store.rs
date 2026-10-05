@@ -1,5 +1,6 @@
 use std::{
     fs,
+    os::unix::fs::symlink,
     path::{Path, PathBuf},
     thread,
 };
@@ -257,6 +258,27 @@ fn refresh_follows_a_directory_whose_segments_were_replaced() {
     let reopened = open(dir.path());
     assert_eq!(reopened.get(b"added").unwrap().unwrap(), b"value");
     assert_eq!(reopened.get(b"later").unwrap().unwrap(), b"value");
+}
+
+#[test]
+fn symbolic_links_in_the_directory_are_not_followed() {
+    let outside = tempfile::tempdir().unwrap();
+    let foreign = tempfile::tempdir().unwrap();
+    open(foreign.path()).put(b"foreign", b"value").unwrap();
+    let foreign_segment = segment_paths(foreign.path()).remove(0);
+    let target = outside.path().join("target");
+    fs::write(&target, "untouched").unwrap();
+
+    for name in [".gitignore", ".kvzip-writer"] {
+        let dir = tempfile::tempdir().unwrap();
+        symlink(&target, dir.path().join(name)).unwrap();
+        symlink(&foreign_segment, dir.path().join("linked.kvz")).unwrap();
+        let store = open(dir.path());
+        assert_eq!(store.get(b"foreign").unwrap(), None);
+        assert!(matches!(store.put(b"key", b"value"), Err(Error::Io(_))));
+        assert_eq!(fs::read_to_string(&target).unwrap(), "untouched");
+        assert_eq!(segment_paths(dir.path()).len(), 1, "only the link");
+    }
 }
 
 fn small_segments() -> Options {
