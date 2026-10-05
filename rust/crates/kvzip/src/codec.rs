@@ -4,7 +4,8 @@
 use std::sync::Arc;
 
 use zstd_safe::{
-    zstd_sys::ZSTD_EndDirective, CCtx, CParameter, DCtx, InBuffer, OutBuffer, ResetDirective,
+    zstd_sys::ZSTD_EndDirective, CCtx, CParameter, DCtx, DParameter, InBuffer, OutBuffer,
+    ResetDirective,
 };
 
 use crate::error::{Error, Result};
@@ -76,6 +77,10 @@ pub fn decode_group<'a>(
     raw_len: usize,
 ) -> Result<Vec<u8>> {
     let mut dctx = DCtx::create();
+    // Frames written by a store never declare more, and a larger declared window would size
+    // the decoder's buffer before a single byte is checked.
+    dctx.set_parameter(DParameter::WindowLogMax(WINDOW_LOG))
+        .expect("a constant zstd parameter is valid");
     dctx.ref_prefix(prefix).map_err(zstd_error)?;
     let mut raw = Vec::new();
     raw.try_reserve_exact(raw_len)
