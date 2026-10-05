@@ -18,6 +18,12 @@ manifest-path = "rust/crates/kvzip-python/Cargo.toml"
 python-source = "python"
 module-name = "kvzip._native"
 
-# Rebuild the extension module when the Rust sources change.
+# Rebuild the extension module when the Rust sources or manifests change.
 [tool.uv]
-cache-keys = [{ file = "pyproject.toml" }, { file = "rust/Cargo.lock" }, { file = "rust/crates/**/*.rs" }]
+cache-keys = [
+  { file = "pyproject.toml" },
+  { file = "rust/Cargo.lock" },
+  { file = "rust/Cargo.toml" },
+  { file = "rust/crates/**/Cargo.toml" },
+  { file = "rust/crates/**/*.rs" },
+]
