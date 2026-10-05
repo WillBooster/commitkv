@@ -18,6 +18,9 @@ use crate::{
 pub const DEFAULT_MAX_SEGMENT_BYTES: u64 = 32 * 1024 * 1024;
 const MIN_MAX_SEGMENT_BYTES: u64 = 1024;
 const SEGMENT_EXTENSION: &str = "kvz";
+/// Names the segment this directory's own writer appended to last, and its length then. The
+/// file is git-ignored, so a clone or another worktree never has it.
+const MARKER_NAME: &str = ".kvzip-writer";
 const HEADER_LEN: u64 = HEADER.len() as u64;
 /// A group stops taking values once it holds this many bytes of them, which bounds what `get`
 /// decodes for one value.
@@ -95,6 +98,7 @@ struct Writer {
     group_open: bool,
     group_raw: usize,
     base: Vec<u8>,
+    marker: Option<File>,
 }
 
 impl Store {
@@ -321,9 +325,14 @@ impl Store {
         Ok(base)
     }
 
-    /// Continues the newest segment when `adopt` is set and no other store is writing to it;
-    /// otherwise the first record will start a new one. Only the newest segment is continued
-    /// so that, across runs, a later record of a key always sorts after an earlier one.
+    /// Continues the newest segment when `adopt` is set, the marker says that this directory's
+    /// own writer left it at its current length, and no other store is writing to it; otherwise
+    /// the first record will start a new one.
+    ///
+    /// The marker keeps every segment's history linear: a segment that arrived through git (a
+    /// clone, another worktree, a checkout of another branch) is never appended to, so two
+    /// branches cannot both change one segment. Only the newest segment is continued so that,
+    /// across runs, a later record of a key always sorts after an earlier one.
     fn open_writer(&self, adopt: bool) -> Result<Writer> {
         let mut writer = Writer {
             open: None,
@@ -332,6 +341,7 @@ impl Store {
             group_open: false,
             group_raw: 0,
             base: Vec::new(),
+            marker: None,
         };
         if !adopt {
             return Ok(writer);
@@ -346,7 +356,10 @@ impl Store {
         else {
             return Ok(writer);
         };
-        if !(HEADER_LEN..self.max_segment_bytes).contains(&segment.scanned) {
+        let written_here = self
+            .read_marker()
+            .is_some_and(|(name, len)| name == segment.name && len == segment.scanned);
+        if !written_here || segment.scanned >= self.max_segment_bytes {
             return Ok(writer);
         }
         let file = OpenOptions::new()
@@ -396,11 +409,62 @@ impl Store {
                 writer.group_raw
             };
         writer.group_open = true;
+        if writer.marker.is_none() {
+            writer.marker = self.open_marker();
+        }
+        if let Some(mut marker) = writer.marker.as_ref() {
+            // The text has a fixed length, so one write replaces it. A failure only leaves a
+            // marker that matches no segment, which makes the next writer start a new one.
+            let text = format!("{} {:020}\n", state.segments[segment].name, writer.len);
+            let _ = marker
+                .seek(SeekFrom::Start(0))
+                .and_then(|_| marker.write_all(text.as_bytes()));
+        }
         let base_room = BASE_MAX - writer.base.len();
         writer
             .base
             .extend_from_slice(&value[..value.len().min(base_room)]);
         Ok(())
+    }
+
+    fn read_marker(&self) -> Option<(String, u64)> {
+        let text = fs::read_to_string(self.dir.join(MARKER_NAME)).ok()?;
+        let (name, len) = text.trim_end().split_once(' ')?;
+        Some((name.to_owned(), len.parse().ok()?))
+    }
+
+    /// Opens the marker after making sure git ignores it: a committed marker would let other
+    /// checkouts append to the segment it names. `None` when either step fails, which only
+    /// costs the next writer a new segment.
+    fn open_marker(&self) -> Option<File> {
+        let ignore_path = self.dir.join(".gitignore");
+        let ignore_line = format!("/{MARKER_NAME}");
+        let ignored = match fs::read_to_string(&ignore_path) {
+            Ok(ignored) => ignored,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
+            Err(_) => return None,
+        };
+        if !ignored.lines().any(|line| line == ignore_line) {
+            let separator = if ignored.is_empty() || ignored.ends_with('\n') {
+                ""
+            } else {
+                "\n"
+            };
+            OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(&ignore_path)
+                .and_then(|mut file| {
+                    file.write_all(format!("{separator}{ignore_line}\n").as_bytes())
+                })
+                .ok()?;
+        }
+        OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(self.dir.join(MARKER_NAME))
+            .ok()
     }
 
     /// Creates a segment whose name sorts after every known one and locks it against other

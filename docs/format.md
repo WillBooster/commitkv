@@ -15,6 +15,20 @@ A store is a directory of segment files named `<time>-<random>.kvz`:
 Files with another extension are ignored. A segment is only ever appended to, by the store that
 holds an exclusive advisory lock (`flock`) on it.
 
+## Which segment a store appends to
+
+A store appends to an existing segment only when all of these hold; otherwise it creates one:
+
+- The segment's name sorts last in the directory.
+- `.kvzip-writer` names the segment and its current length. The file holds
+  `<segment name> <length as 20 decimal digits>\n` and is rewritten after every record.
+- The segment ends in a valid record, is shorter than the limit, and its lock is free.
+
+A store lists `/.kvzip-writer` in the directory's `.gitignore` before it creates the file, so the
+file never travels through git. A segment is therefore extended only in the directory that
+created it and only from the state that directory left it in: all versions of a segment that
+ever exist are prefixes of one another, and two branches cannot both change one segment.
+
 ## Segment
 
 A segment is the 8-byte header `kvzip\0\0\x01` (the last byte is the version) followed by

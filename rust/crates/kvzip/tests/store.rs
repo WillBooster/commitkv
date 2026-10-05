@@ -1,4 +1,8 @@
-use std::{fs, path::Path, thread};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    thread,
+};
 
 use kvzip::{Error, Options, Store};
 
@@ -147,12 +151,7 @@ fn a_torn_tail_hides_only_the_record_it_belongs_to() {
             store.put(&key(i), &document(i)).unwrap();
         }
     }
-    let segment = fs::read_dir(dir.path())
-        .unwrap()
-        .next()
-        .unwrap()
-        .unwrap()
-        .path();
+    let segment = segment_paths(dir.path()).remove(0);
     let bytes = fs::read(&segment).unwrap();
     fs::write(&segment, &bytes[..bytes.len() - 3]).unwrap();
     {
@@ -195,15 +194,64 @@ fn similar_values_share_context_within_and_across_runs() {
     );
 }
 
+#[test]
+fn checkouts_that_share_history_never_change_the_same_segment() {
+    let origin = tempfile::tempdir().unwrap();
+    open(origin.path()).put(&key(0), &document(0)).unwrap();
+    let committed = segment_paths(origin.path()).remove(0);
+    let committed_bytes = fs::read(&committed).unwrap();
+
+    // A clone of the commit adds records in a segment of its own.
+    let clone = tempfile::tempdir().unwrap();
+    clone_segments(origin.path(), clone.path());
+    open(clone.path()).put(&key(1), &document(1)).unwrap();
+    let cloned = clone.path().join(committed.file_name().unwrap());
+    assert_eq!(fs::read(cloned).unwrap(), committed_bytes);
+
+    // The origin continues its segment, then checks out the commit again and adds a record:
+    // the segment is back at its committed bytes and stays there.
+    open(origin.path()).put(&key(2), &document(2)).unwrap();
+    assert_eq!(segment_paths(origin.path()).len(), 1);
+    fs::write(&committed, &committed_bytes).unwrap();
+    open(origin.path()).put(&key(3), &document(3)).unwrap();
+    assert_eq!(fs::read(&committed).unwrap(), committed_bytes);
+
+    // Merging the two checkouts is a union of files, and nothing is lost.
+    clone_segments(clone.path(), origin.path());
+    let merged = open(origin.path());
+    for id in [0, 1, 3] {
+        assert_eq!(merged.get(&key(id)).unwrap().unwrap(), document(id));
+    }
+    let ignored = fs::read_to_string(origin.path().join(".gitignore")).unwrap();
+    assert_eq!(ignored, "/.kvzip-writer\n");
+}
+
 fn open(dir: &Path) -> Store {
     Store::open(dir, Options::default()).unwrap()
 }
 
 fn segment_sizes(dir: &Path) -> Vec<u64> {
-    fs::read_dir(dir)
-        .unwrap()
-        .map(|entry| entry.unwrap().metadata().unwrap().len())
+    segment_paths(dir)
+        .iter()
+        .map(|path| fs::metadata(path).unwrap().len())
         .collect()
+}
+
+fn segment_paths(dir: &Path) -> Vec<PathBuf> {
+    let mut paths: Vec<PathBuf> = fs::read_dir(dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "kvz"))
+        .collect();
+    paths.sort();
+    paths
+}
+
+/// What git gives another checkout: the segments, without the ignored files.
+fn clone_segments(from: &Path, to: &Path) {
+    for path in segment_paths(from) {
+        fs::copy(&path, to.join(path.file_name().unwrap())).unwrap();
+    }
 }
 
 fn key(id: usize) -> Vec<u8> {

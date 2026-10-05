@@ -43,7 +43,10 @@ test('a record that does not fit in a segment is rejected and no segment exceeds
   const store = new Store(directory, { maxSegmentBytes });
   expect(() => store.put('huge', crypto.getRandomValues(new Uint8Array(maxSegmentBytes)))).toThrow(/segment/);
   for (let i = 0; i < 20; i++) store.put(`key-${i}`, crypto.getRandomValues(new Uint8Array(1000)));
-  const sizes = fs.readdirSync(directory).map((name) => fs.statSync(path.join(directory, name)).size);
+  const sizes = fs
+    .readdirSync(directory)
+    .filter((name) => name.endsWith('.kvz'))
+    .map((name) => fs.statSync(path.join(directory, name)).size);
   expect(sizes.length).toBeGreaterThan(1);
   expect(Math.max(...sizes)).toBeLessThanOrEqual(maxSegmentBytes);
   expect(() => new Store(directory, { maxSegmentBytes: 1 })).toThrow(/max_segment_bytes/);

@@ -6,9 +6,10 @@ Node.js, and Bun.
 - **No file ever exceeds a size limit.** Records are appended to segment files; before a record
   is written, a segment that it would push past the limit (32 MiB by default) is closed and a
   new one is started. A record that cannot fit even in an empty segment is rejected.
-- **Git-friendly.** A closed segment is never rewritten, so git stores it once. Stores that
-  write at the same time write to different segments, so branches that both add records merge
-  without conflicts.
+- **Git-friendly.** Segments are only ever appended to, and only by the checkout that created
+  them: a segment that arrived through git (a clone, another worktree, a checkout of another
+  branch) is never changed. Branches that both add records therefore add different files and
+  merge without conflicts.
 - **Compressed without training.** Every value is coded with zstd against the values stored
   before it in the same segment, so values that resemble each other (prompts built from one
   template, API responses of one shape) cost little after the first few. There is no
@@ -54,8 +55,10 @@ store.refresh(); // pick up what other stores wrote to the directory
 - A record is written with one `write` call and is not synced to disk. After a crash, a store
   ignores a record that was only partly written and everything else remains readable.
 - Each record carries a CRC-32 that is checked whenever it is read.
-- A store that starts writing continues the newest segment when no other store is writing to it,
-  so short runs do not each leave a small file behind.
+- A store that starts writing continues the newest segment when the same directory wrote it
+  last and no other store is writing to it, so short runs do not each leave a small file behind.
+  The directory remembers this in `.kvzip-writer`, which kvzip lists in a `.gitignore` it keeps
+  in the directory; commit that `.gitignore` with the segments.
 - `get` decodes at most the values written around the requested one (about 1 MiB) and keeps
   recently decoded values in memory.
 

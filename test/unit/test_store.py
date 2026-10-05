@@ -54,7 +54,7 @@ def test_a_record_that_does_not_fit_is_rejected_and_no_segment_exceeds_the_limit
         store.put("huge", os.urandom(max_segment_bytes))
     for i in range(20):
         store.put(f"key-{i}", os.urandom(1000))
-    sizes = [path.stat().st_size for path in tmp_path.iterdir()]
+    sizes = [path.stat().st_size for path in tmp_path.glob("*.kvz")]
     assert len(sizes) > 1
     assert max(sizes) <= max_segment_bytes
     with pytest.raises(ValueError, match="max_segment_bytes"):
