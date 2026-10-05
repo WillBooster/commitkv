@@ -12,10 +12,11 @@ fn main() {
         .next()
         .map_or(usize::MAX, |limit| limit.parse().expect("a record count"));
     let content = fs::read(path).expect("the file is readable");
-    assert!(!content.is_empty(), "the file holds no line");
     let content = content.strip_suffix(b"\n").unwrap_or(&content);
     let lines: Vec<&[u8]> = content.split(|&byte| byte == b'\n').take(limit).collect();
     let raw: usize = lines.iter().map(|line| line.len()).sum();
+    // Every figure below is relative to the bytes stored.
+    assert!(raw > 0, "the lines to store hold no bytes");
     let dir = tempfile::tempdir().expect("a temporary directory");
 
     let store = Store::open(dir.path(), Options::default()).expect("the store opens");
