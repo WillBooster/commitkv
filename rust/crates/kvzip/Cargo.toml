@@ -1,0 +1,15 @@
+[package]
+name = "kvzip"
+version = "0.0.0"
+description = "Compressed key-value store for git-managed caches"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+crc32fast = "1"
+zstd-safe = { version = "8", features = ["std"] }
+
+[dev-dependencies]
+tempfile = "3"

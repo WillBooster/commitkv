@@ -1,0 +1,23 @@
+[project]
+name = "kvzip"
+version = "0.0.0"
+description = "Compressed key-value store for git-managed caches: append-only segments that never exceed a size limit"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[tool.maturin]
+manifest-path = "rust/crates/kvzip-python/Cargo.toml"
+python-source = "python"
+module-name = "kvzip._native"
+
+# Rebuild the extension module when the Rust sources change.
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { file = "rust/Cargo.lock" }, { file = "rust/crates/**/*.rs" }]
