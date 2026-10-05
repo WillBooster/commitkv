@@ -70,9 +70,9 @@ A segment is only ever appended to, by the store that holds an exclusive advisor
 on it. A store starts appending to an existing segment only when all of these hold; otherwise it
 creates one:
 
-- The segment's name sorts last in the directory, and the store stops appending to a segment
-  once it sees one whose name sorts later. This makes a `put` replace every record of its key
-  that the store has seen.
+- The segment's name sorts last among the segments the store has read, and the store stops
+  appending to a segment once it has read one whose name sorts later. This makes a `put` replace
+  every record of its key that the store has seen.
 - The segment ends in a valid record and is shorter than the limit. A record after an invalid
   one would never be read, and no segment may exceed the limit.
 - `.kvzip-writer` names the segment and its current length. This keeps two branches from
