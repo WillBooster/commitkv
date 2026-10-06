@@ -77,7 +77,7 @@ jobs:
           merge-multiple: true
       - run: |
           mkdir -p .tmp
-          npm pack --ignore-scripts --pack-destination .tmp
+          bun scripts/packNpm.ts
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: npm-package
@@ -104,6 +104,9 @@ jobs:
           path: .tmp
       - run: |
           mkdir -p .tmp/npm-consumer .tmp/bun-consumer
+          for consumer in npm bun; do
+            printf '%s\n' '{"private":true,"type":"module"}' > ".tmp/$consumer-consumer/package.json"
+          done
           npm install --prefix .tmp/npm-consumer --no-audit --no-fund "$PWD"/.tmp/*.tgz
           cd .tmp/bun-consumer
           bun add "$GITHUB_WORKSPACE"/.tmp/*.tgz
