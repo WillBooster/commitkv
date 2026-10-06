@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ ! -f .tmp/npm-package/package.json ]]; then
+  echo 'Missing staged npm package. Download npm-release-package from the release workflow at this commit into .tmp/npm-package.' >&2
+  exit 1
+fi
 node --input-type=module - "$1" <<'JS'
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 const file = '.tmp/npm-package/package.json';
 const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+const gitHead = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+assert.equal(manifest.gitHead, gitHead, 'The staged npm package must match the checked-out commit.');
 manifest.version = process.argv[2];
 fs.writeFileSync(file, `${JSON.stringify(manifest, undefined, 2)}\n`);
 JS

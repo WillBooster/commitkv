@@ -109,3 +109,5 @@ re-exports and types.
 
 Read [docs/format.md](docs/format.md) before changing how segments are written or read: it is
 the contract that keeps existing caches readable.
+
+Read [docs/releasing.md](docs/releasing.md) when publishing locally or retrying a Python release.
