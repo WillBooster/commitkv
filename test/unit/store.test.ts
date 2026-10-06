@@ -47,7 +47,7 @@ test('a record that does not fit in a segment is rejected and no segment exceeds
   for (let i = 0; i < 20; i++) store.put(`key-${i}`, crypto.getRandomValues(new Uint8Array(1000)));
   const sizes = fs
     .readdirSync(directory)
-    .filter((name) => name.endsWith('.kvz'))
+    .filter((name) => name.endsWith('.ckv'))
     .map((name) => fs.statSync(path.join(directory, name)).size);
   expect(sizes.length).toBeGreaterThan(1);
   expect(Math.max(...sizes)).toBeLessThanOrEqual(maxSegmentBytes);
@@ -55,5 +55,5 @@ test('a record that does not fit in a segment is rejected and no segment exceeds
 });
 
 function temporaryDirectory(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'kvzip-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'commitkv-'));
 }

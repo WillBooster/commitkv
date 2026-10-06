@@ -1,5 +1,5 @@
 [package]
-name = "kvzip"
+name = "commitkv"
 version = "0.0.0"
 description = "Compressed key-value store for git-managed caches"
 edition.workspace = true

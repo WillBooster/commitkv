@@ -3,7 +3,7 @@
 
 use std::{env, fs, time::Instant};
 
-use kvzip::{Options, Store};
+use commitkv::{Options, Store};
 
 fn main() {
     let mut args = env::args().skip(1);
@@ -31,7 +31,7 @@ fn main() {
         .expect("the directory is readable")
         .filter(|entry| {
             let path = entry.as_ref().expect("an entry").path();
-            path.extension().is_some_and(|extension| extension == "kvz")
+            path.extension().is_some_and(|extension| extension == "ckv")
         })
         .map(|entry| entry.expect("an entry").metadata().expect("metadata").len())
         .sum();

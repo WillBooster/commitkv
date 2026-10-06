@@ -1,5 +1,5 @@
 [project]
-name = "kvzip"
+name = "commitkv"
 version = "0.0.0"
 description = "Compressed key-value store for git-managed caches: append-only segments that never exceed a size limit"
 readme = "README.md"
@@ -14,9 +14,9 @@ requires = ["maturin>=1.9,<2"]
 build-backend = "maturin"
 
 [tool.maturin]
-manifest-path = "rust/crates/kvzip-python/Cargo.toml"
+manifest-path = "rust/crates/commitkv-python/Cargo.toml"
 python-source = "python"
-module-name = "kvzip._native"
+module-name = "commitkv._native"
 
 # Rebuild the extension module when the Rust sources or manifests change.
 [tool.uv]

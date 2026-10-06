@@ -9,7 +9,7 @@ pub enum Error {
         max_segment_bytes: u64,
     },
     InvalidOptions(String),
-    /// The directory holds something kvzip did not write: a record that passed its checksum
+    /// The directory holds something commitkv did not write: a record that passed its checksum
     /// but does not decode, or a segment name no new segment can sort after.
     Corrupt(String),
 }

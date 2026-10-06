@@ -1,5 +1,5 @@
 {
-  "name": "kvzip",
+  "name": "commitkv",
   "version": "0.0.0-semantically-released",
   "description": "Compressed key-value store for git-managed caches: append-only segments that never exceed a size limit, usable from Python, Node.js, and Bun",
   "keywords": [
@@ -29,8 +29,9 @@
     "native/"
   ],
   "scripts": {
-    "build": "bun run build/native && build-ts lib --input src/index.ts --module-type esm",
+    "build": "bun run build/native && bun run build/types",
     "build/native": "bun scripts/buildNative.ts",
+    "build/types": "build-ts lib --input src/index.ts --module-type esm",
     "cleanup": "bun wb lint --fix --format",
     "format": "bun wb lint --format",
     "lint": "bun wb lint",
@@ -57,6 +58,14 @@
     "sort-package-json": "4.0.0",
     "typescript": "7.0.2"
   },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"

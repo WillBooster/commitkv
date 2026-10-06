@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "kvzip",
+      "name": "commitkv",
       "devDependencies": {
         "@tsconfig/bun": "1.0.11",
         "@types/bun": "1.4.2",

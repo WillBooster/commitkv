@@ -21,10 +21,10 @@ const MIN_MAX_SEGMENT_BYTES: u64 = 1024;
 /// GitHub rejects files above 100 MiB; staying under 100 MB holds for either reading of the
 /// unit.
 pub const MAX_MAX_SEGMENT_BYTES: u64 = 100_000_000;
-const SEGMENT_EXTENSION: &str = "kvz";
+const SEGMENT_EXTENSION: &str = "ckv";
 /// Names the segment this directory's own writer appended to last, and its length then. The
 /// file is git-ignored, so a clone or another worktree never has it.
-const MARKER_NAME: &str = ".kvzip-writer";
+const MARKER_NAME: &str = ".commitkv-writer";
 const HEADER_LEN: u64 = HEADER.len() as u64;
 /// A group stops taking values once it holds this many bytes of them, which bounds what `get`
 /// decodes for one value.
@@ -576,7 +576,7 @@ impl Store {
         loop {
             let random = RandomState::new().hash_one(time) as u32;
             let name = format!("{time:016x}-{random:08x}.{SEGMENT_EXTENSION}");
-            // A name kvzip did not choose (not a time, or the last possible one) can sort
+            // A name commitkv did not choose (not a time, or the last possible one) can sort
             // after every name it can: records written now would lose to that segment's.
             if let Some(newest) = state.newest.map(|newest| &state.segments[newest].name) {
                 if *newest >= name {

@@ -8,19 +8,19 @@ use napi_derive::napi;
 
 #[napi]
 pub struct Store {
-    inner: kvzip::Store,
+    inner: commitkv::Store,
 }
 
 #[napi]
 impl Store {
     #[napi(constructor)]
     pub fn new(directory: String, max_segment_bytes: Option<f64>) -> Result<Self> {
-        let mut options = kvzip::Options::default();
+        let mut options = commitkv::Options::default();
         if let Some(max_segment_bytes) = max_segment_bytes {
             // The cast saturates and maps NaN to 0, both of which the store rejects.
             options.max_segment_bytes = max_segment_bytes as u64;
         }
-        let inner = kvzip::Store::open(directory, options).map_err(to_js_error)?;
+        let inner = commitkv::Store::open(directory, options).map_err(to_js_error)?;
         Ok(Self { inner })
     }
 
@@ -57,10 +57,12 @@ impl Store {
 }
 
 /// The status becomes the `code` of the JavaScript error, which `src/index.ts` documents.
-fn to_js_error(error: kvzip::Error) -> Error {
+fn to_js_error(error: commitkv::Error) -> Error {
     let status = match error {
-        kvzip::Error::RecordTooLarge { .. } | kvzip::Error::InvalidOptions(_) => Status::InvalidArg,
-        kvzip::Error::Io(_) | kvzip::Error::Corrupt(_) => Status::GenericFailure,
+        commitkv::Error::RecordTooLarge { .. } | commitkv::Error::InvalidOptions(_) => {
+            Status::InvalidArg
+        }
+        commitkv::Error::Io(_) | commitkv::Error::Corrupt(_) => Status::GenericFailure,
     };
     Error::new(status, error.to_string())
 }

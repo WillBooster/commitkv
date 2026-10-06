@@ -7,7 +7,7 @@ below contributes no records and is never appended to.
 
 ## Directory
 
-A store is a directory of segment files named `<time>-<random>.kvz`:
+A store is a directory of segment files named `<time>-<random>.ckv`:
 
 - `<time>`: 16 lowercase hex digits, the creation time in microseconds since the Unix epoch,
   raised when necessary so that the name sorts after every segment the creating store knows.
@@ -18,8 +18,11 @@ file. A store never follows a symbolic link in its directory.
 
 ## Segment
 
-A segment is the 8-byte header `kvzip\0\0\x01` (the last byte is the version) followed by
-records:
+A segment is the 10-byte header `commitkv\0\x01` (the last byte is the version) followed by
+records. Every version keeps a NUL byte in the header: wherever git decides by content whether a
+file is text (`text=auto`, `core.autocrlf`), it then takes the segment as binary and leaves its
+line endings alone, whatever the records hold. An attribute that declares segments to be text
+(`* text`, `* text eol=crlf`) overrides this and corrupts them.
 
 | Field          | Encoding                                        |
 | -------------- | ----------------------------------------------- |
@@ -75,14 +78,14 @@ creates one:
   every record of its key that the store has seen.
 - The segment ends in a valid record and is shorter than the limit. A record after an invalid
   one would never be read, and no segment may exceed the limit.
-- `.kvzip-writer` names the segment and its current length. This keeps two branches from
+- `.commitkv-writer` names the segment and its current length. This keeps two branches from
   changing one segment.
 
-`.kvzip-writer` holds `<segment name> <length as 20 decimal digits>\n`. A store rewrites it
+`.commitkv-writer` holds `<segment name> <length as 20 decimal digits>\n`. A store rewrites it
 before every record with the length the segment will have, and does not write the record when
-that fails. A store lists `/.kvzip-writer` in the directory's `.gitignore` before it creates the
+that fails. A store lists `/.commitkv-writer` in the directory's `.gitignore` before it creates the
 file, so the file never travels through git. A segment is therefore extended only in the
 directory that created it and only from the state that directory left it in: all versions of a
 segment that ever exist are prefixes of one another.
 
-`put` fails when `.gitignore` or `.kvzip-writer` is a symbolic link, without writing a record.
+`put` fails when `.gitignore` or `.commitkv-writer` is a symbolic link, without writing a record.

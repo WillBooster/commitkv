@@ -1,0 +1,124 @@
+name: Prebuilt npm package
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version of the packed npm package (defaults to the one in package.json)
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux-x64
+            image: quay.io/pypa/manylinux2014_x86_64
+          - runner: ubuntu-24.04-arm
+            platform: linux-arm64
+            image: quay.io/pypa/manylinux2014_aarch64
+          - runner: macos-15-intel
+            platform: darwin-x64
+          - runner: macos-15
+            platform: darwin-arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.1.1
+      - uses: Swatinem/rust-cache@v2.9.2
+        with:
+          workspaces: rust
+      - run: bun install --frozen-lockfile
+      - if: runner.os == 'Linux'
+        env:
+          BUILD_IMAGE: ${{ matrix.image }}
+          BUILD_PLATFORM: ${{ matrix.platform }}
+        run: |
+          docker run --rm \
+            -v "$PWD:/project" \
+            -v "$HOME/.cargo:/root/.cargo" \
+            -v "$HOME/.rustup:/root/.rustup" \
+            -e RUSTUP_TOOLCHAIN \
+            -e CARGO_TARGET_DIR=rust/target/manylinux \
+            -e PATH="/root/.cargo/bin:/opt/rh/devtoolset-10/root/usr/bin:/usr/local/bin:/usr/bin:/bin" \
+            -w /project "$BUILD_IMAGE" \
+            cargo build --release --locked --manifest-path rust/Cargo.toml -p commitkv-node
+          mkdir -p native
+          cp rust/target/manylinux/release/libcommitkv_node.so "native/commitkv-$BUILD_PLATFORM.node"
+      - if: runner.os == 'macOS'
+        run: bun run build/native
+      - run: bun run build/types
+      - run: bun wb test test/unit/store.test.ts
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: native-${{ matrix.platform }}
+          path: native/commitkv-${{ matrix.platform }}.node
+          if-no-files-found: error
+  package:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.1.1
+      - run: bun install --frozen-lockfile
+      - run: bun run build/types
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          pattern: native-*
+          path: native
+          merge-multiple: true
+      - env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          mkdir -p .tmp
+          bun scripts/packNpm.ts ${VERSION:+"$VERSION"}
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: npm-package
+          path: .tmp/*.tgz
+          include-hidden-files: true
+          if-no-files-found: error
+  install:
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15-intel, macos-15]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.1.1
+        with:
+          install_args: bun node
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          name: npm-package
+          path: .tmp
+      - run: |
+          mkdir -p .tmp/npm-consumer .tmp/bun-consumer
+          for consumer in npm bun; do
+            printf '%s\n' '{"private":true,"type":"module"}' > ".tmp/$consumer-consumer/package.json"
+          done
+          npm install --prefix .tmp/npm-consumer --no-audit --no-fund "$PWD"/.tmp/*.tgz
+          cd .tmp/bun-consumer
+          bun add "$GITHUB_WORKSPACE"/.tmp/*.tgz
+      - name: Verify installed Node.js and Bun APIs
+        run: |
+          for consumer in npm bun; do
+            cp test/fixtures/packageSmoke.mjs ".tmp/$consumer-consumer/smoke.mjs"
+            (cd ".tmp/$consumer-consumer" && node smoke.mjs && bun smoke.mjs)
+          done

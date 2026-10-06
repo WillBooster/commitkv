@@ -33,7 +33,7 @@ wheels = [
 ]
 
 [[package]]
-name = "kvzip"
+name = "commitkv"
 version = "0.0.0"
 source = { editable = "." }
 
