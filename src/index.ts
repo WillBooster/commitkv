@@ -9,10 +9,11 @@ interface NativeStore {
   refresh(): void;
 }
 
-// The addon is built by `bun run build/native`; this path is the same from `src/` and `dist/`.
-const native = createRequire(import.meta.url)('../native/kvzip.node') as {
+interface NativeAddon {
   Store: new (directory: string, maxSegmentBytes?: number) => NativeStore;
-};
+}
+
+const native = loadNative();
 
 /** A key or a value; a string stands for its UTF-8 encoding. */
 export type Data = string | Uint8Array;
@@ -68,4 +69,20 @@ export class Store {
 
 function toBytes(data: Data): Uint8Array {
   return typeof data === 'string' ? Buffer.from(data) : data;
+}
+
+function loadNative(): NativeAddon {
+  const platform = `${process.platform}-${process.arch}`;
+  if (!['darwin', 'linux'].includes(process.platform) || !['x64', 'arm64'].includes(process.arch)) {
+    throw new Error(
+      `kvzip does not support ${platform}; supported platforms are Linux (glibc) and macOS on x64 and arm64`
+    );
+  }
+  try {
+    return createRequire(import.meta.url)(`../native/kvzip-${platform}.node`) as NativeAddon;
+  } catch (error) {
+    throw new Error(`Unable to load kvzip for ${platform}${process.platform === 'linux' ? ' (requires glibc)' : ''}`, {
+      cause: error,
+    });
+  }
 }

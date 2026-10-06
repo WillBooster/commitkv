@@ -17,8 +17,21 @@ Node.js, and Bun.
 - **Safe to share.** One store may be used from several threads, and several stores, in one
   process or many, may use the same directory at once.
 
-kvzip runs on Linux and macOS. It is not published to PyPI or npm yet: build it from a checkout
-(see [Development](#development)).
+kvzip supports Linux (glibc 2.17 or newer) and macOS, on x86_64 and arm64.
+
+## Installation
+
+For Node.js and Bun, install the npm package. It includes prebuilt Node-API addons for all
+four supported platforms; Rust is not required.
+
+```bash
+npm install kvzip
+# or
+bun add kvzip
+```
+
+Python installation currently requires a checkout and a Rust toolchain (see
+[Development](#development)); the Python package is not published to PyPI yet.
 
 ## Usage
 
@@ -75,12 +88,12 @@ store.refresh(); // pick up what other stores wrote to the directory
 ```bash
 mise install               # bun, node, rust, uv
 bun install
-bun run build              # builds native/kvzip.node and the dist/ that `import 'kvzip'` resolves to
+bun run build              # builds the platform addon and the dist/ that `import 'kvzip'` resolves to
 bun wb test                # Bun tests of the TypeScript API, and pytest through `uv run`
 cargo test --release --manifest-path rust/Cargo.toml
 ```
 
-The tests load `native/kvzip.node`: after changing Rust code, rerun `bun run build/native`,
+The tests load the platform addon from `native/`: after changing Rust code, rerun `bun run build/native`,
 which builds only that. `uv run` rebuilds the Python extension module by itself.
 
 `cargo run --release --manifest-path rust/Cargo.toml --example lines -- <file>` stores every

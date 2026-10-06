@@ -19,4 +19,7 @@ if (error) throw error;
 if (status !== 0) process.exit(status ?? 1);
 
 fs.mkdirSync(path.join(root, 'native'), { recursive: true });
-fs.copyFileSync(path.join(root, 'rust', 'target', 'release', libraryName), path.join(root, 'native', 'kvzip.node'));
+fs.copyFileSync(
+  path.join(root, 'rust', 'target', 'release', libraryName),
+  path.join(root, 'native', `kvzip-${process.platform}-${process.arch}.node`)
+);
