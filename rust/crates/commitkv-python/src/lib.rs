@@ -1,4 +1,4 @@
-//! CPython extension module `kvzip._native`; `python/kvzip` re-exports and types it.
+//! CPython extension module `commitkv._native`; `python/commitkv` re-exports and types it.
 
 use std::path::PathBuf;
 
@@ -25,9 +25,9 @@ impl Data {
     }
 }
 
-#[pyclass(frozen, module = "kvzip")]
+#[pyclass(frozen, module = "commitkv")]
 struct Store {
-    inner: kvzip::Store,
+    inner: commitkv::Store,
 }
 
 // Every method detaches from the interpreter while it is in the store, which reads and writes
@@ -41,14 +41,14 @@ impl Store {
         directory: PathBuf,
         max_segment_bytes: Option<&Bound<'_, PyInt>>,
     ) -> PyResult<Self> {
-        let mut options = kvzip::Options::default();
+        let mut options = commitkv::Options::default();
         if let Some(max_segment_bytes) = max_segment_bytes {
             // An integer that is not a `u64` is out of range like 0, which the store rejects
             // with the error every other out-of-range value gets.
             options.max_segment_bytes = max_segment_bytes.extract().unwrap_or(0);
         }
         let inner = py
-            .detach(|| kvzip::Store::open(directory, options))
+            .detach(|| commitkv::Store::open(directory, options))
             .map_err(to_py_error)?;
         Ok(Self { inner })
     }
@@ -83,14 +83,14 @@ impl Store {
     }
 }
 
-fn to_py_error(error: kvzip::Error) -> PyErr {
+fn to_py_error(error: commitkv::Error) -> PyErr {
     let message = error.to_string();
     match error {
-        kvzip::Error::Io(_) => PyOSError::new_err(message),
-        kvzip::Error::RecordTooLarge { .. } | kvzip::Error::InvalidOptions(_) => {
+        commitkv::Error::Io(_) => PyOSError::new_err(message),
+        commitkv::Error::RecordTooLarge { .. } | commitkv::Error::InvalidOptions(_) => {
             PyValueError::new_err(message)
         }
-        kvzip::Error::Corrupt(_) => PyRuntimeError::new_err(message),
+        commitkv::Error::Corrupt(_) => PyRuntimeError::new_err(message),
     }
 }
 

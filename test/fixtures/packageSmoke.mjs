@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-import { Store } from 'kvzip';
+import { Store } from 'commitkv';
 
 const directory = fs.mkdtempSync('store-');
 try {
@@ -20,4 +20,4 @@ try {
 } finally {
   fs.rmSync(directory, { recursive: true, force: true });
 }
-console.log(`Installed kvzip works on ${process.platform}-${process.arch} with ${process.versions.bun ? 'Bun' : 'Node.js'}.`);
+console.log(`Installed commitkv works on ${process.platform}-${process.arch} with ${process.versions.bun ? 'Bun' : 'Node.js'}.`);

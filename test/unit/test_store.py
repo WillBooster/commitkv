@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from kvzip import Store
+from commitkv import Store
 
 
 def test_values_written_as_str_and_bytes_survive_reopening(tmp_path: Path) -> None:
@@ -54,7 +54,7 @@ def test_a_record_that_does_not_fit_is_rejected_and_no_segment_exceeds_the_limit
         store.put("huge", os.urandom(max_segment_bytes))
     for i in range(20):
         store.put(f"key-{i}", os.urandom(1000))
-    sizes = [path.stat().st_size for path in tmp_path.glob("*.kvz")]
+    sizes = [path.stat().st_size for path in tmp_path.glob("*.ckv")]
     assert len(sizes) > 1
     assert max(sizes) <= max_segment_bytes
     for out_of_range in (1, -1, 2**64):

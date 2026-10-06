@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/kvzip", "crates/kvzip-node", "crates/kvzip-python"]
+members = ["crates/commitkv", "crates/commitkv-node", "crates/commitkv-python"]
 
 [workspace.package]
 edition = "2021"

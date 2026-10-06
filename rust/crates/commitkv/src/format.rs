@@ -1,7 +1,7 @@
 //! On-disk layout of a segment; docs/format.md is the specification.
 
 /// The last byte is the format version.
-pub const HEADER: [u8; 8] = *b"kvzip\0\0\x01";
+pub const HEADER: [u8; 9] = *b"commitkv\x01";
 
 const KIND_CONTINUE: u8 = 0;
 const KIND_NEW_GROUP: u8 = 1;

@@ -20,7 +20,7 @@ for (const name of ['dist', 'LICENSE', 'README.md']) {
 }
 fs.mkdirSync(path.join(directory, 'native'));
 for (const platform of ['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64']) {
-  const filename = `kvzip-${platform}.node`;
+  const filename = `commitkv-${platform}.node`;
   fs.copyFileSync(path.join(root, 'native', filename), path.join(directory, 'native', filename));
 }
 try {

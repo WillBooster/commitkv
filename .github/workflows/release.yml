@@ -48,9 +48,9 @@ jobs:
             -e CARGO_TARGET_DIR=rust/target/manylinux \
             -e PATH="/root/.cargo/bin:/opt/rh/devtoolset-10/root/usr/bin:/usr/local/bin:/usr/bin:/bin" \
             -w /project "$BUILD_IMAGE" \
-            cargo build --release --locked --manifest-path rust/Cargo.toml -p kvzip-node
+            cargo build --release --locked --manifest-path rust/Cargo.toml -p commitkv-node
           mkdir -p native
-          cp rust/target/manylinux/release/libkvzip_node.so "native/kvzip-$BUILD_PLATFORM.node"
+          cp rust/target/manylinux/release/libcommitkv_node.so "native/commitkv-$BUILD_PLATFORM.node"
       - if: runner.os == 'macOS'
         run: bun run build/native
       - run: bun run build/types
@@ -58,7 +58,7 @@ jobs:
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: native-${{ matrix.platform }}
-          path: native/kvzip-${{ matrix.platform }}.node
+          path: native/commitkv-${{ matrix.platform }}.node
           if-no-files-found: error
   package:
     needs: build

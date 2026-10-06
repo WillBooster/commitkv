@@ -6,8 +6,9 @@ use std::{
     thread,
 };
 
-use kvzip::{Error, Options, Store};
+use commitkv::{Error, Options, Store};
 
+const HEADER: &[u8] = b"commitkv\x01";
 const SMALL_SEGMENT: u64 = 64 * 1024;
 
 #[test]
@@ -232,7 +233,7 @@ fn checkouts_that_share_history_never_change_the_same_segment() {
         assert_eq!(merged.get(&key(id)).unwrap().unwrap(), document(id));
     }
     let ignored = fs::read_to_string(origin.path().join(".gitignore")).unwrap();
-    assert_eq!(ignored, "/.kvzip-writer\n");
+    assert_eq!(ignored, "/.commitkv-writer\n");
 }
 
 #[test]
@@ -242,7 +243,7 @@ fn refresh_follows_a_directory_whose_segments_were_replaced() {
     store.put(b"removed", b"value").unwrap();
     // What checking out another branch does, including an entry that only looks like a segment.
     fs::remove_file(segment_paths(dir.path()).remove(0)).unwrap();
-    fs::create_dir(dir.path().join("not-a-segment.kvz")).unwrap();
+    fs::create_dir(dir.path().join("not-a-segment.ckv")).unwrap();
     store.refresh().unwrap();
     assert_eq!(store.get(b"removed").unwrap(), None);
     assert_eq!(store.len(), 0);
@@ -279,10 +280,10 @@ fn symbolic_links_in_the_directory_are_not_followed() {
     let target = outside.path().join("target");
     fs::write(&target, "untouched").unwrap();
 
-    for name in [".gitignore", ".kvzip-writer"] {
+    for name in [".gitignore", ".commitkv-writer"] {
         let dir = tempfile::tempdir().unwrap();
         symlink(&target, dir.path().join(name)).unwrap();
-        symlink(&foreign_segment, dir.path().join("linked.kvz")).unwrap();
+        symlink(&foreign_segment, dir.path().join("linked.ckv")).unwrap();
         let store = open(dir.path());
         assert_eq!(store.get(b"foreign").unwrap(), None);
         assert!(matches!(store.put(b"key", b"value"), Err(Error::Io(_))));
@@ -342,7 +343,7 @@ fn a_segment_of_another_format_version_is_neither_read_nor_changed() {
 fn value_lengths_that_cannot_be_addressed_are_reported_not_trusted() {
     // A group whose first record declares a value of u64::MAX bytes and whose second record
     // declares one more byte, both with valid checksums.
-    let mut segment = b"kvzip\0\0\x01".to_vec();
+    let mut segment = HEADER.to_vec();
     for (kind, key, value_len) in [(1, b'a', &[0xff; 10][..]), (0, b'b', &[1][..])] {
         let mut record = vec![kind, 1, key];
         record.extend_from_slice(value_len);
@@ -354,7 +355,7 @@ fn value_lengths_that_cannot_be_addressed_are_reported_not_trusted() {
         segment.extend_from_slice(&record);
     }
     let dir = tempfile::tempdir().unwrap();
-    fs::write(dir.path().join("0000000000000001-00000000.kvz"), segment).unwrap();
+    fs::write(dir.path().join("0000000000000001-00000000.ckv"), segment).unwrap();
 
     let store = open(dir.path());
     assert_eq!(store.keys(), [b"a".to_vec()]);
@@ -373,7 +374,7 @@ fn values_that_are_not_as_long_as_their_records_declare_are_reported() {
     // Every length here fits in one byte: kind, key length, key, value length, payload length.
     let segment = segment_paths(dir.path()).remove(0);
     let mut bytes = fs::read(&segment).unwrap();
-    let first = 8;
+    let first = HEADER.len();
     let second = first + 5 + bytes[first + 4] as usize + 4;
     bytes.swap(first + 3, second + 3);
     for (start, end) in [(first, second), (second, bytes.len())] {
@@ -393,7 +394,7 @@ fn a_put_fails_rather_than_lose_to_a_segment_no_name_can_follow() {
     let dir = tempfile::tempdir().unwrap();
     open(dir.path()).put(b"key", b"old").unwrap();
     let segment = segment_paths(dir.path()).remove(0);
-    fs::rename(segment, dir.path().join("ffffffffffffffff-ffffffff.kvz")).unwrap();
+    fs::rename(segment, dir.path().join("ffffffffffffffff-ffffffff.ckv")).unwrap();
 
     let store = open(dir.path());
     assert!(matches!(store.put(b"key", b"new"), Err(Error::Corrupt(_))));
@@ -422,7 +423,7 @@ fn segment_paths(dir: &Path) -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = fs::read_dir(dir)
         .unwrap()
         .map(|entry| entry.unwrap().path())
-        .filter(|path| path.extension().is_some_and(|extension| extension == "kvz"))
+        .filter(|path| path.extension().is_some_and(|extension| extension == "ckv"))
         .collect();
     paths.sort();
     paths

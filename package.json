@@ -1,5 +1,5 @@
 {
-  "name": "kvzip",
+  "name": "commitkv",
   "version": "0.0.0-semantically-released",
   "description": "Compressed key-value store for git-managed caches: append-only segments that never exceed a size limit, usable from Python, Node.js, and Bun",
   "keywords": [

@@ -75,14 +75,17 @@ function loadNative(): NativeAddon {
   const platform = `${process.platform}-${process.arch}`;
   if (!['darwin', 'linux'].includes(process.platform) || !['x64', 'arm64'].includes(process.arch)) {
     throw new Error(
-      `kvzip does not support ${platform}; supported platforms are Linux (glibc) and macOS on x64 and arm64`
+      `commitkv does not support ${platform}; supported platforms are Linux (glibc) and macOS on x64 and arm64`
     );
   }
   try {
-    return createRequire(import.meta.url)(`../native/kvzip-${platform}.node`) as NativeAddon;
+    return createRequire(import.meta.url)(`../native/commitkv-${platform}.node`) as NativeAddon;
   } catch (error) {
-    throw new Error(`Unable to load kvzip for ${platform}${process.platform === 'linux' ? ' (requires glibc)' : ''}`, {
-      cause: error,
-    });
+    throw new Error(
+      `Unable to load commitkv for ${platform}${process.platform === 'linux' ? ' (requires glibc)' : ''}`,
+      {
+        cause: error,
+      }
+    );
   }
 }

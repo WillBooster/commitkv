@@ -1,4 +1,4 @@
-# kvzip
+# commitkv
 
 A compressed key-value store for caches that are committed to git, usable from Python,
 Node.js, and Bun.
@@ -17,7 +17,7 @@ Node.js, and Bun.
 - **Safe to share.** One store may be used from several threads, and several stores, in one
   process or many, may use the same directory at once.
 
-kvzip supports Linux (glibc 2.17 or newer) and macOS, on x86_64 and arm64.
+commitkv supports Linux (glibc 2.17 or newer) and macOS, on x86_64 and arm64.
 
 ## Installation
 
@@ -25,9 +25,9 @@ For Node.js and Bun, install the npm package. It includes prebuilt Node-API addo
 four supported platforms; Rust is not required.
 
 ```bash
-npm install kvzip
+npm install commitkv
 # or
-bun add kvzip
+bun add commitkv
 ```
 
 Python installation currently requires a checkout and a Rust toolchain (see
@@ -38,7 +38,7 @@ Python installation currently requires a checkout and a Rust toolchain (see
 A `str` / `string` key or value stands for its UTF-8 encoding; values are returned as bytes.
 
 ```python
-from kvzip import Store
+from commitkv import Store
 
 store = Store("cache")                 # or Store("cache", max_segment_bytes=16 * 1024 * 1024)
 store.put("key", "value")
@@ -48,7 +48,7 @@ store.refresh()                        # pick up what other stores wrote to the 
 ```
 
 ```ts
-import { Store } from 'kvzip';
+import { Store } from 'commitkv';
 
 const store = new Store('cache'); // or new Store('cache', { maxSegmentBytes: 16 * 1024 * 1024 })
 store.put('key', 'value');
@@ -60,7 +60,7 @@ store.refresh(); // pick up what other stores wrote to the directory
 ## Behavior
 
 - `put` replaces every value of the key that the store has seen. The earlier records stay in
-  their segments: kvzip never deletes or compacts.
+  their segments: commitkv never deletes or compacts.
 - A store reads the directory when it opens, when `refresh` is called, and when a `put` starts
   writing (the first `put`, and the first after a failed one); records that other stores write
   stay invisible until one of those happens. Call `refresh` after
@@ -77,7 +77,7 @@ store.refresh(); // pick up what other stores wrote to the directory
 - Each record carries a CRC-32 that is checked whenever it is read.
 - A store that starts writing continues the newest segment when the same directory wrote it
   last and no other store is writing to it, so short runs do not each leave a small file behind.
-  The directory remembers this in `.kvzip-writer`, which kvzip lists in a `.gitignore` it keeps
+  The directory remembers this in `.commitkv-writer`, which commitkv lists in a `.gitignore` it keeps
   in the directory; commit that `.gitignore` with the segments.
 - `get` decodes the values written around the requested one and those at the start of its
   segment (about 1 MiB each, more when single values are larger) and keeps recently decoded
@@ -88,7 +88,7 @@ store.refresh(); // pick up what other stores wrote to the directory
 ```bash
 mise install               # bun, node, rust, uv
 bun install
-bun run build              # builds the platform addon and the dist/ that `import 'kvzip'` resolves to
+bun run build              # builds the platform addon and the dist/ that `import 'commitkv'` resolves to
 bun wb test                # Bun tests of the TypeScript API, and pytest through `uv run`
 cargo test --release --manifest-path rust/Cargo.toml
 ```
@@ -99,8 +99,8 @@ which builds only that. `uv run` rebuilds the Python extension module by itself.
 `cargo run --release --manifest-path rust/Cargo.toml --example lines -- <file>` stores every
 line of a file as a value and reports the stored size and the throughput.
 
-Layout: `rust/crates/kvzip` is the store, `rust/crates/kvzip-node` the Node-API addon that
-`src/index.ts` wraps, and `rust/crates/kvzip-python` the extension module that `python/kvzip`
+Layout: `rust/crates/commitkv` is the store, `rust/crates/commitkv-node` the Node-API addon that
+`src/index.ts` wraps, and `rust/crates/commitkv-python` the extension module that `python/commitkv`
 re-exports and types.
 
 Read [docs/format.md](docs/format.md) before changing how segments are written or read: it is

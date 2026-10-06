@@ -1,4 +1,4 @@
-//! kvzip: a compressed key-value store for caches kept in git. Records are appended to segment
+//! commitkv: a compressed key-value store for caches kept in git. Records are appended to segment
 //! files that never exceed a size limit and are never rewritten; docs/format.md specifies the
 //! layout.
 
