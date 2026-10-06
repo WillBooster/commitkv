@@ -1,7 +1,9 @@
 //! On-disk layout of a segment; docs/format.md is the specification.
 
-/// The last byte is the format version.
-pub const HEADER: [u8; 9] = *b"commitkv\x01";
+/// The last byte is the format version. The NUL makes git treat every segment as binary;
+/// without it, a segment that is mostly text (long keys, little payload) would have its CRLFs
+/// rewritten in repositories that normalize line endings.
+pub const HEADER: [u8; 10] = *b"commitkv\0\x01";
 
 const KIND_CONTINUE: u8 = 0;
 const KIND_NEW_GROUP: u8 = 1;

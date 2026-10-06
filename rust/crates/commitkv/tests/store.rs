@@ -8,7 +8,7 @@ use std::{
 
 use commitkv::{Error, Options, Store};
 
-const HEADER: &[u8] = b"commitkv\x01";
+const HEADER: &[u8] = b"commitkv\0\x01";
 const SMALL_SEGMENT: u64 = 64 * 1024;
 
 #[test]
