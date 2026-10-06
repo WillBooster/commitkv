@@ -16,6 +16,7 @@ concurrency:
   queue: ${{ github.event_name == 'pull_request' && 'single' || 'max' }}
 jobs:
   build:
+    if: github.ref_type != 'tag'
     strategy:
       fail-fast: false
       matrix:
