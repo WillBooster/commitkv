@@ -21,6 +21,7 @@ build-backend = "maturin"
 manifest-path = "rust/crates/commitkv-python/Cargo.toml"
 python-source = "python"
 module-name = "commitkv._native"
+include = [{ path = "LICENSE", format = "sdist" }]
 
 # Rebuild the extension module when the Rust sources or manifests change.
 [tool.uv]
