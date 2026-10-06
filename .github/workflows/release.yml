@@ -130,7 +130,7 @@ jobs:
   release:
     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release-pending/'))
     needs: install
-    uses: WillBooster/reusable-workflows/.github/workflows/release.yml@main
+    uses: WillBooster/reusable-workflows/.github/workflows/release.yml@8d1b0f2b89b3c957859c4fef7a4d33ac5e0296af
     permissions:
       actions: write
       contents: write
@@ -206,10 +206,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2.9.2
         with:
           workspaces: rust
-      - name: Set the Python package version
+      - name: Prepare the Python build
         env:
           RELEASE_VERSION: ${{ needs.python-version.outputs.version }}
-        run: uv version "$RELEASE_VERSION" --frozen
+        run: |
+          mkdir -p .tmp/python-dist
+          uv version "$RELEASE_VERSION" --frozen
       - uses: PyO3/maturin-action@v1.51.0
         with:
           target: ${{ matrix.target }}
