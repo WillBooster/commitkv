@@ -329,7 +329,7 @@ fn a_segment_of_another_format_version_is_neither_read_nor_changed() {
     open(dir.path()).put(b"key", b"value").unwrap();
     let segment = segment_paths(dir.path()).remove(0);
     let mut bytes = fs::read(&segment).unwrap();
-    bytes[7] = 2;
+    bytes[HEADER.len() - 1] = 2;
     fs::write(&segment, &bytes).unwrap();
 
     let store = open(dir.path());
