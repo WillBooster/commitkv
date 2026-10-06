@@ -173,7 +173,7 @@ jobs:
           if [[ -n "$version" ]]; then
             git merge-base --is-ancestor HEAD origin/main
             commit=$(git rev-parse HEAD)
-            curl --fail --silent --show-error --retry 5 --retry-all-errors "https://registry.npmjs.org/commitkv/$version" |
+            curl --fail --silent --show-error --connect-timeout 10 --max-time 20 --retry 30 --retry-delay 10 --retry-max-time 300 --retry-all-errors "https://registry.npmjs.org/commitkv/$version" |
               jq --exit-status --arg commit "$commit" '.gitHead == $commit' > /dev/null
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
