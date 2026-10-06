@@ -19,8 +19,10 @@ file. A store never follows a symbolic link in its directory.
 ## Segment
 
 A segment is the 10-byte header `commitkv\0\x01` (the last byte is the version) followed by
-records. Every version keeps a NUL byte in the header: git then treats the segment as binary and
-never rewrites line endings in it, whatever its records hold.
+records. Every version keeps a NUL byte in the header: wherever git decides by content whether a
+file is text (`text=auto`, `core.autocrlf`), it then takes the segment as binary and leaves its
+line endings alone, whatever the records hold. An attribute that declares segments to be text
+(`* text`, `* text eol=crlf`) overrides this and corrupts them.
 
 | Field          | Encoding                                        |
 | -------------- | ----------------------------------------------- |
