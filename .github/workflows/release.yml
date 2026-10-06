@@ -235,6 +235,19 @@ jobs:
       - if: matrix.platform == 'linux-x64'
         name: Verify the installed source distribution
         run: |
+          .tmp/python-3.10/bin/python - <<'PY'
+          import email
+          import pathlib
+          import tarfile
+
+          for path in pathlib.Path('.tmp/python-dist').glob('*.tar.gz'):
+              with tarfile.open(path) as archive:
+                  metadata_path = next(name for name in archive.getnames() if name.endswith('/PKG-INFO'))
+                  metadata = email.message_from_bytes(archive.extractfile(metadata_path).read())
+                  root = metadata_path.rsplit('/', 1)[0]
+                  for license_file in metadata.get_all('License-File', []):
+                      assert f'{root}/{license_file}' in archive.getnames(), license_file
+          PY
           uv venv --python 3.10 .tmp/python-source
           uv pip install --python .tmp/python-source/bin/python .tmp/python-dist/*.tar.gz pytest
           .tmp/python-source/bin/python -m pytest test/unit/test_store.py
