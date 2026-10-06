@@ -169,6 +169,12 @@ jobs:
             echo "::error::The requested version must match the release tag at this commit."
             exit 1
           fi
+          if [[ -n "$version" ]]; then
+            git merge-base --is-ancestor HEAD origin/main
+            commit=$(git rev-parse HEAD)
+            curl --fail --silent --show-error --retry 5 --retry-all-errors "https://registry.npmjs.org/commitkv/$version" |
+              jq --exit-status --arg commit "$commit" '.gitHead == $commit' > /dev/null
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
   python-build:
     needs: python-version
@@ -236,7 +242,7 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
   pypi:
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release-pending/') || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v')))
+    if: always() && needs.python-build.result == 'success' && github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release-pending/') || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v')))
     needs: python-build
     runs-on: ubuntu-24.04
     environment:
