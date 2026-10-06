@@ -1,4 +1,4 @@
-name: Prebuilt npm package
+name: Release
 on:
   push:
     branches: [main]
@@ -6,15 +6,17 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version of the packed npm package (defaults to the one in package.json)
+        description: Optional version check when retrying PyPI on a release tag
         type: string
 permissions:
   contents: read
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || 'release' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  queue: ${{ github.event_name == 'pull_request' && 'single' || 'max' }}
 jobs:
   build:
+    if: github.ref_type != 'tag'
     strategy:
       fail-fast: false
       matrix:
@@ -79,15 +81,17 @@ jobs:
           pattern: native-*
           path: native
           merge-multiple: true
-      - env:
-          VERSION: ${{ inputs.version }}
-        run: |
-          mkdir -p .tmp
-          bun scripts/packNpm.ts ${VERSION:+"$VERSION"}
+      - run: bun scripts/packNpm.ts
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: npm-package
           path: .tmp/*.tgz
+          include-hidden-files: true
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: npm-release-package
+          path: .tmp/npm-package/
           include-hidden-files: true
           if-no-files-found: error
   install:
@@ -122,3 +126,139 @@ jobs:
             cp test/fixtures/packageSmoke.mjs ".tmp/$consumer-consumer/smoke.mjs"
             (cd ".tmp/$consumer-consumer" && node smoke.mjs && bun smoke.mjs)
           done
+
+  release:
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release-pending/'))
+    needs: install
+    uses: WillBooster/reusable-workflows/.github/workflows/release.yml@8d1b0f2b89b3c957859c4fef7a4d33ac5e0296af
+    permissions:
+      actions: write
+      contents: write
+      id-token: write
+    with:
+      github_hosted_runner: true
+      skip_build: true
+      artifact_name: npm-release-package
+      artifact_path: .tmp/npm-package
+    secrets:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAKUMI_GUARD_TOKEN: ${{ secrets.TAKUMI_GUARD_TOKEN }}
+  python-version:
+    if: always() && (github.event_name == 'pull_request' || needs.release.result == 'success' || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v')))
+    needs: release
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Resolve the published version
+        id: version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+          IS_PULL_REQUEST: ${{ github.event_name == 'pull_request' }}
+        run: |
+          if [[ "$IS_PULL_REQUEST" == 'true' ]]; then
+            echo 'version=0.0.0' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          version=$(git tag --points-at HEAD --list 'v*' | sed -nE 's/^v([0-9]+\.[0-9]+\.[0-9]+)$/\1/p')
+          if [[ -n "$REQUESTED_VERSION" && "$REQUESTED_VERSION" != "$version" ]]; then
+            echo "::error::The requested version must match the release tag at this commit."
+            exit 1
+          fi
+          if [[ -n "$version" ]]; then
+            git merge-base --is-ancestor HEAD origin/main
+            commit=$(git rev-parse HEAD)
+            curl --fail --silent --show-error --retry 5 --retry-all-errors "https://registry.npmjs.org/commitkv/$version" |
+              jq --exit-status --arg commit "$commit" '.gitHead == $commit' > /dev/null
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+  python-build:
+    needs: python-version
+    if: always() && needs.python-version.result == 'success' && needs.python-version.outputs.version != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux-x64
+            target: x86_64
+          - runner: ubuntu-24.04-arm
+            platform: linux-arm64
+            target: aarch64
+          - runner: macos-15-intel
+            platform: darwin-x64
+            target: x86_64
+          - runner: macos-15
+            platform: darwin-arm64
+            target: aarch64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: jdx/mise-action@v5.1.1
+      - uses: Swatinem/rust-cache@v2.9.2
+        with:
+          workspaces: rust
+      - name: Prepare the Python build
+        env:
+          RELEASE_VERSION: ${{ needs.python-version.outputs.version }}
+        run: |
+          mkdir -p .tmp/python-dist
+          uv version "$RELEASE_VERSION" --frozen
+      - uses: PyO3/maturin-action@v1.51.0
+        with:
+          target: ${{ matrix.target }}
+          manylinux: '2014'
+          args: --release --locked --out .tmp/python-dist
+      - name: Verify the installed wheel on Python 3.10 and 3.14
+        env:
+          RELEASE_VERSION: ${{ needs.python-version.outputs.version }}
+        run: |
+          for version in 3.10 3.14; do
+            uv venv --python "$version" ".tmp/python-$version"
+            uv pip install --python ".tmp/python-$version/bin/python" .tmp/python-dist/*.whl pytest
+            ".tmp/python-$version/bin/python" -c 'import importlib.metadata, os; assert importlib.metadata.version("commitkv") == os.environ["RELEASE_VERSION"]'
+            ".tmp/python-$version/bin/python" -m pytest test/unit/test_store.py
+          done
+      - if: matrix.platform == 'linux-x64'
+        uses: PyO3/maturin-action@v1.51.0
+        with:
+          command: sdist
+          args: --out .tmp/python-dist
+      - if: matrix.platform == 'linux-x64'
+        name: Verify the installed source distribution
+        run: |
+          uv venv --python 3.10 .tmp/python-source
+          uv pip install --python .tmp/python-source/bin/python .tmp/python-dist/*.tar.gz pytest
+          .tmp/python-source/bin/python -m pytest test/unit/test_store.py
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: python-${{ matrix.platform }}
+          path: .tmp/python-dist/*
+          include-hidden-files: true
+          if-no-files-found: error
+  pypi:
+    if: always() && needs.python-build.result == 'success' && github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release-pending/') || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v')))
+    needs: python-build
+    runs-on: ubuntu-24.04
+    environment:
+      name: pypi
+      url: https://pypi.org/project/commitkv/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          pattern: python-*
+          path: dist
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@v1.14.2
+        with:
+          skip-existing: true

@@ -1,4 +1,11 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["github>WillBooster/willbooster-configs:renovate.jsonc"],
+  "packageRules": [
+    {
+      "description": "Keep the preset compatible with the release notes generator's changelog writer.",
+      "matchPackageNames": ["conventional-changelog-conventionalcommits"],
+      "allowedVersions": "<10",
+    },
+  ],
 }
