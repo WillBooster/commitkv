@@ -6,6 +6,10 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 
+[project.urls]
+Repository = "https://github.com/WillBooster/commitkv"
+Issues = "https://github.com/WillBooster/commitkv/issues"
+
 [dependency-groups]
 dev = ["pytest>=8"]
 

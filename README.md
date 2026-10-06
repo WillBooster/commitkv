@@ -30,8 +30,12 @@ npm install commitkv
 bun add commitkv
 ```
 
-Python installation currently requires a checkout and a Rust toolchain (see
-[Development](#development)); the Python package is not published to PyPI yet.
+For Python 3.10 or newer, install the PyPI package. Wheels for the same four platforms do
+not require Rust; installing from source requires a Rust toolchain.
+
+```bash
+pip install commitkv
+```
 
 ## Usage
 
