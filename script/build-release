@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
-mkdir -p .tmp/npm-package
-tar -xzf .tmp/release-artifacts/commitkv-*.tgz -C .tmp/npm-package --strip-components=1
 node --input-type=module - "$1" <<'JS'
 import fs from 'node:fs';
 const file = '.tmp/npm-package/package.json';

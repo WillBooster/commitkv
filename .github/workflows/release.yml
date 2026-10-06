@@ -6,14 +6,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Existing release version to retry on PyPI (otherwise uses the release tag at this commit)
+        description: Optional version check when retrying PyPI on a release tag
         type: string
 permissions:
   contents: read
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
-  queue: max
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || 'release' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  queue: ${{ github.event_name == 'pull_request' && 'single' || 'max' }}
 jobs:
   build:
     strategy:
@@ -87,6 +87,12 @@ jobs:
           path: .tmp/*.tgz
           include-hidden-files: true
           if-no-files-found: error
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: npm-release-package
+          path: .tmp/npm-package/
+          include-hidden-files: true
+          if-no-files-found: error
   install:
     needs: package
     strategy:
@@ -121,7 +127,7 @@ jobs:
           done
 
   release:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release-pending/'))
     needs: install
     uses: WillBooster/reusable-workflows/.github/workflows/release.yml@main
     permissions:
@@ -131,12 +137,13 @@ jobs:
     with:
       github_hosted_runner: true
       skip_build: true
-      artifact_name: npm-package
+      artifact_name: npm-release-package
+      artifact_path: .tmp/npm-package
     secrets:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TAKUMI_GUARD_TOKEN: ${{ secrets.TAKUMI_GUARD_TOKEN }}
   python-version:
-    if: always() && (github.event_name == 'pull_request' || needs.release.result == 'success')
+    if: always() && (github.event_name == 'pull_request' || needs.release.result == 'success' || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v')))
     needs: release
     runs-on: ubuntu-24.04
     outputs:
@@ -145,6 +152,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ github.sha }}
           persist-credentials: false
       - name: Resolve the published version
         id: version
@@ -185,6 +193,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: jdx/mise-action@v5.1.1
       - uses: Swatinem/rust-cache@v2.9.2
@@ -193,23 +202,20 @@ jobs:
       - name: Set the Python package version
         env:
           RELEASE_VERSION: ${{ needs.python-version.outputs.version }}
-        run: |
-          python3 - <<'PYTHON'
-          import os
-          from pathlib import Path
-          file = Path("pyproject.toml")
-          file.write_text(file.read_text().replace('version = "0.0.0"', f'version = "{os.environ["RELEASE_VERSION"]}"', 1))
-          PYTHON
+        run: uv version "$RELEASE_VERSION" --frozen
       - uses: PyO3/maturin-action@v1.51.0
         with:
           target: ${{ matrix.target }}
           manylinux: '2014'
           args: --release --locked --out .tmp/python-dist
       - name: Verify the installed wheel on Python 3.10 and 3.14
+        env:
+          RELEASE_VERSION: ${{ needs.python-version.outputs.version }}
         run: |
           for version in 3.10 3.14; do
             uv venv --python "$version" ".tmp/python-$version"
             uv pip install --python ".tmp/python-$version/bin/python" .tmp/python-dist/*.whl pytest
+            ".tmp/python-$version/bin/python" -c 'import importlib.metadata, os; assert importlib.metadata.version("commitkv") == os.environ["RELEASE_VERSION"]'
             ".tmp/python-$version/bin/python" -m pytest test/unit/test_store.py
           done
       - if: matrix.platform == 'linux-x64'
@@ -230,7 +236,7 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
   pypi:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release-pending/') || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v')))
     needs: python-build
     runs-on: ubuntu-24.04
     environment:
