@@ -4,6 +4,10 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      version:
+        description: Version of the packed npm package (defaults to the one in package.json)
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -75,9 +79,11 @@ jobs:
           pattern: native-*
           path: native
           merge-multiple: true
-      - run: |
+      - env:
+          VERSION: ${{ inputs.version }}
+        run: |
           mkdir -p .tmp
-          bun scripts/packNpm.ts
+          bun scripts/packNpm.ts ${VERSION:+"$VERSION"}
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: npm-package
