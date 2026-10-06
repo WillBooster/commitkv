@@ -103,9 +103,9 @@ jobs:
           path: .tmp
       - run: |
           mkdir -p .tmp/npm-consumer .tmp/bun-consumer
-          npm install --prefix .tmp/npm-consumer --ignore-scripts --no-audit --no-fund "$PWD"/.tmp/*.tgz
+          npm install --prefix .tmp/npm-consumer --no-audit --no-fund "$PWD"/.tmp/*.tgz
           cd .tmp/bun-consumer
-          bun add --ignore-scripts "$GITHUB_WORKSPACE"/.tmp/*.tgz
+          bun add "$GITHUB_WORKSPACE"/.tmp/*.tgz
       - name: Verify installed Node.js and Bun APIs
         run: |
           for consumer in npm bun; do
