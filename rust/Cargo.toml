@@ -5,7 +5,7 @@ members = ["crates/commitkv", "crates/commitkv-node", "crates/commitkv-python"]
 [workspace.package]
 edition = "2021"
 license = "Apache-2.0"
-repository = "https://github.com/WillBooster/kvzip"
+repository = "https://github.com/WillBooster/commitkv"
 
 [profile.release]
 lto = true
