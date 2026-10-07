@@ -69,6 +69,12 @@ store.refresh(); // pick up what other stores wrote to the directory
   writing (the first `put`, and the first after a failed one); records that other stores write
   stay invisible until one of those happens. Call `refresh` after
   replacing segments under an open store, for example by checking out another branch.
+- Stores that write to a directory at the same time each append to a segment of their own, and
+  the next run continues only one of them. Open one store per directory in a process and share
+  it; a store per use leaves a small segment behind on every run, and a small segment
+  compresses worse because its values have few earlier ones to refer to.
+- `keys` lists the keys in the order their current values were written. Read every value in
+  that order: a scattered order decodes the surrounding values again for most of them.
 - Among records of a key that stores wrote without seeing each other's, which one wins is
   unspecified, but every reader picks the same one.
 - `max_segment_bytes` / `maxSegmentBytes` must be between 1,024 and 100,000,000; the upper
