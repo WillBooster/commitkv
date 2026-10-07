@@ -56,7 +56,7 @@ fn values_survive_reopening_and_the_latest_value_of_a_key_wins() {
 }
 
 #[test]
-fn keys_are_listed_in_the_order_their_current_values_were_written() {
+fn keys_are_listed_in_the_order_a_store_wrote_their_current_values() {
     let dir = tempfile::tempdir().unwrap();
     {
         let store = Store::open(dir.path(), small_segments()).unwrap();

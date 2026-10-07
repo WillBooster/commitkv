@@ -73,8 +73,10 @@ store.refresh(); // pick up what other stores wrote to the directory
   the next run continues only one of them. Open one store per directory in a process and share
   it; a store per use leaves a small segment behind on every run, and a small segment
   compresses worse because its values have few earlier ones to refer to.
-- `keys` lists the keys in the order their current values were written. Read every value in
-  that order: a scattered order decodes the surrounding values again for most of them.
+- `keys` lists the keys in the order their current values lie in the segments, oldest segment
+  first. One store's writes are listed in the order it made them; writes that several stores
+  made at the same time are grouped by store, not interleaved by time. Read every value in that
+  order: a scattered order decodes the surrounding values again for most of them.
 - Among records of a key that stores wrote without seeing each other's, which one wins is
   unspecified, but every reader picks the same one.
 - `max_segment_bytes` / `maxSegmentBytes` must be between 1,024 and 100,000,000; the upper

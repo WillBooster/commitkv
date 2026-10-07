@@ -214,8 +214,9 @@ impl Store {
         self.len() == 0
     }
 
-    /// The keys in the order their current records were written, so reading every value in
-    /// this order decodes each group once.
+    /// The keys in the order their current records lie in the segments, oldest segment first,
+    /// so reading every value in this order decodes each group once. This is the order one
+    /// store wrote them; stores that write at the same time fill segments of their own.
     pub fn keys(&self) -> Vec<Vec<u8>> {
         let state = self.read_state();
         let mut entries: Vec<_> = state.index.iter().collect();
