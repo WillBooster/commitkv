@@ -70,7 +70,7 @@ store.refresh(); // pick up what other stores wrote to the directory
   stay invisible until one of those happens. Call `refresh` after
   replacing segments under an open store, for example by checking out another branch.
 - Stores that write to a directory at the same time each append to a segment of their own, and
-  the next run continues only one of them. Open one store per directory in a process and share
+  the next run continues at most one of them. Open one store per directory in a process and share
   it; a store per use leaves a small segment behind on every run, and a small segment
   compresses worse because its values have few earlier ones to refer to.
 - `keys` lists the keys in the order their current values lie in the segments, oldest segment
