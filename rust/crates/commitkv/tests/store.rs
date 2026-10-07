@@ -56,6 +56,21 @@ fn values_survive_reopening_and_the_latest_value_of_a_key_wins() {
 }
 
 #[test]
+fn keys_are_listed_in_the_order_a_store_wrote_their_current_values() {
+    let dir = tempfile::tempdir().unwrap();
+    {
+        let store = Store::open(dir.path(), small_segments()).unwrap();
+        for i in 0..400 {
+            store.put(&key(i), &noise(i as u64, 1000)).unwrap();
+        }
+        store.put(&key(3), b"replaced").unwrap();
+    }
+    assert!(segment_paths(dir.path()).len() > 1);
+    let expected: Vec<Vec<u8>> = (0..400).filter(|&i| i != 3).chain([3]).map(key).collect();
+    assert_eq!(open(dir.path()).keys(), expected);
+}
+
+#[test]
 fn no_segment_exceeds_the_limit() {
     let dir = tempfile::tempdir().unwrap();
     let options = small_segments();

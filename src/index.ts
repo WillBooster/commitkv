@@ -57,6 +57,10 @@ export class Store {
     return this.#native.size;
   }
 
+  /**
+   * Lists the keys in the order their current values lie in the segments, oldest segment first,
+   * which is the order one store wrote them; reading every value is fastest in this order.
+   */
   keys(): Buffer[] {
     return this.#native.keys();
   }

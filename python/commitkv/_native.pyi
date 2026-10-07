@@ -25,6 +25,9 @@ class Store:
 
     def __contains__(self, key: str | bytes) -> bool: ...
     def __len__(self) -> int: ...
-    def keys(self) -> list[bytes]: ...
+    def keys(self) -> list[bytes]:
+        """Lists the keys in the order their current values lie in the segments, oldest segment
+        first, which is the order one store wrote them; reading every value is fastest in this
+        order."""
     def refresh(self) -> None:
         """Picks up records that other stores wrote to the directory."""

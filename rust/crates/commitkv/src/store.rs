@@ -214,9 +214,14 @@ impl Store {
         self.len() == 0
     }
 
+    /// The keys in the order their current records lie in the segments, oldest segment first,
+    /// so reading every value in this order decodes each group once. This is the order one
+    /// store wrote them; stores that write at the same time fill segments of their own.
     pub fn keys(&self) -> Vec<Vec<u8>> {
         let state = self.read_state();
-        state.index.keys().map(|key| key.to_vec()).collect()
+        let mut entries: Vec<_> = state.index.iter().collect();
+        entries.sort_unstable_by_key(|(_, location)| state.position(location));
+        entries.into_iter().map(|(key, _)| key.to_vec()).collect()
     }
 
     /// Picks up records that other stores wrote to the directory since the last call, and
@@ -611,6 +616,12 @@ impl State {
         index
     }
 
+    /// Orders records by age: segment names order by creation time and offsets order within a
+    /// segment.
+    fn position(&self, location: &Location) -> (&str, u64) {
+        (&self.segments[location.segment].name, location.end)
+    }
+
     /// Adds a record that follows the scanned part of its segment; `false` when the record
     /// cannot be placed, which leaves the state unchanged.
     fn apply(&mut self, segment_index: usize, record: &Record) -> bool {
@@ -648,12 +659,11 @@ impl State {
         segment.scanned = location.end;
         segment.group_raw = group_raw_end;
         segment.raw_total = raw_total;
-        // The newest record of a key wins: segment names order by creation time and offsets
-        // order within a segment.
-        let newer = self.index.get(record.key).is_none_or(|current| {
-            (&self.segments[current.segment].name, current.end)
-                < (&self.segments[segment_index].name, location.end)
-        });
+        // The newest record of a key wins.
+        let newer = self
+            .index
+            .get(record.key)
+            .is_none_or(|current| self.position(current) < self.position(&location));
         if newer {
             self.index.insert(record.key.into(), location);
         }
