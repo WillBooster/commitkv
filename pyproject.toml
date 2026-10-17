@@ -3,7 +3,7 @@ name = "commitkv"
 version = "0.0.0"
 description = "Compressed key-value store for git-managed caches: append-only segments that never exceed a size limit"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = "==3.15.0"
 license = "Apache-2.0"
 
 [project.urls]
