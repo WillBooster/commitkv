@@ -1,7 +1,7 @@
 [tools]
 bun = "1.4.3"
 node = "24.22.1"
-uv = "0.12.23"
+uv = "0.13.4"
 
 [tools.rust]
 version = "1.98.0"
