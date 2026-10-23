@@ -86,9 +86,9 @@ dev = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "black", specifier = ">=26.10.1" },
-    { name = "flake8", specifier = ">=7.4.1" },
-    { name = "isort", specifier = ">=9.0.2" },
+    { name = "black", specifier = "==26.10.1" },
+    { name = "flake8", specifier = "==7.4.1" },
+    { name = "isort", specifier = "==9.0.2" },
     { name = "pytest", specifier = "==9.1.1" },
 ]
 
