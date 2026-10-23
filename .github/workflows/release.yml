@@ -37,7 +37,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: jdx/mise-action@v5.1.1
-      - uses: Swatinem/rust-cache@v2.9.2
+      - uses: Swatinem/rust-cache@v2.9.3
         with:
           workspaces: rust
       - run: bun install --frozen-lockfile
@@ -203,7 +203,7 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
       - uses: jdx/mise-action@v5.1.1
-      - uses: Swatinem/rust-cache@v2.9.2
+      - uses: Swatinem/rust-cache@v2.9.3
         with:
           workspaces: rust
       - name: Prepare the Python build
@@ -272,6 +272,6 @@ jobs:
           pattern: python-*
           path: dist
           merge-multiple: true
-      - uses: pypa/gh-action-pypi-publish@v1.14.2
+      - uses: pypa/gh-action-pypi-publish@v1.14.3
         with:
           skip-existing: true
