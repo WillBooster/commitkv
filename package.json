@@ -9,25 +9,37 @@
     "key-value",
     "zstd"
   ],
+  "license": "Apache-2.0",
+  "author": "WillBooster Inc.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/WillBooster/commitkv.git"
   },
-  "license": "Apache-2.0",
-  "author": "WillBooster Inc.",
+  "files": [
+    "dist/",
+    "native/"
+  ],
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
   "type": "module",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
   },
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "files": [
-    "dist/",
-    "native/"
-  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "build": "bun run build/native && bun run build/types",
     "build/native": "bun scripts/buildNative.ts",
@@ -53,28 +65,13 @@
     "@semantic-release/release-notes-generator": "14.1.1",
     "@tsconfig/bun": "1.0.11",
     "@types/bun": "1.4.3",
-    "@willbooster/oxfmt-config": "1.2.2",
-    "@willbooster/oxlint-config": "1.4.8",
-    "@willbooster/wb": "22.27.0",
+    "@willbooster/oxlint-config": "1.4.9",
+    "@willbooster/wb": "22.29.1",
     "build-ts": "21.0.27",
     "conventional-changelog-conventionalcommits": "9.3.1",
     "lefthook": "2.2.2",
-    "oxfmt": "0.73.0",
     "oxlint": "1.88.0",
     "oxlint-tsgolint": "7.0.2004",
-    "semantic-release": "25.0.9",
-    "sort-package-json": "4.1.0"
-  },
-  "os": [
-    "darwin",
-    "linux"
-  ],
-  "cpu": [
-    "x64",
-    "arm64"
-  ],
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org/"
+    "semantic-release": "25.0.9"
   }
 }
