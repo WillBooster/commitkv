@@ -11,10 +11,10 @@ Repository = "https://github.com/WillBooster/commitkv"
 Issues = "https://github.com/WillBooster/commitkv/issues"
 
 [dependency-groups]
-dev = ["black==26.10.1", "flake8==7.4.1", "isort==9.0.2", "pytest==9.1.1"]
+dev = ["black==26.10.1", "flake8==7.5.0", "isort==9.0.2", "pytest==9.2.0"]
 
 [build-system]
-requires = ["maturin==1.15.0"]
+requires = ["maturin==1.16.0"]
 build-backend = "maturin"
 
 [tool.maturin]
