@@ -1,6 +1,6 @@
 [tools]
 bun = "1.4.4"
-node = "26.13.0"
+node = "26.13.1"
 uv = "0.13.7"
 
 [tools.rust]
