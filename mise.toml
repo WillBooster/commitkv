@@ -4,5 +4,5 @@ node = "26.13.1"
 uv = "0.13.7"
 
 [tools.rust]
-version = "1.99.1"
+version = "1.100.0"
 components = "rustfmt,clippy"
