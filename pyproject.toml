@@ -13,6 +13,9 @@ Issues = "https://github.com/WillBooster/commitkv/issues"
 [dependency-groups]
 dev = ["black==26.10.1", "flake8==7.5.0", "isort==9.0.2", "pytest==9.2.0"]
 
+[tool.uv.dependency-groups]
+dev = { requires-python = ">=3.11" }
+
 [build-system]
 requires = ["maturin==1.16.0"]
 build-backend = "maturin"
